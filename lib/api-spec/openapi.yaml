@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: products
+    description: Product and stock operations
+  - name: dashboard
+    description: Inventory summaries and activity
 paths:
   /healthz:
     get:
@@ -24,6 +28,141 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: List products
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [all, normal, low, out]
+        - in: query
+          name: category
+          schema: { type: string }
+      responses:
+        "200":
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Created product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+  /products/{id}:
+    patch:
+      operationId: updateProduct
+      tags: [products]
+      summary: Update a product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number, format: int32 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpdate"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      summary: Delete a product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number, format: int32 }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Product not found
+  /products/{id}/stock:
+    post:
+      operationId: createStockMovement
+      tags: [products]
+      summary: Add or remove stock
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: number, format: int32 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockMovementInput"
+      responses:
+        "200":
+          description: Product with updated stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Invalid movement
+        "404":
+          description: Product not found
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get inventory summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /activity:
+    get:
+      operationId: listActivity
+      tags: [dashboard]
+      summary: List recent stock activity
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Activity"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +172,79 @@ components:
           type: string
       required:
         - status
+    Product:
+      type: object
+      required: [id, sku, name, category, brand, accent, unitPrice, stock, minStock, status, updatedAt]
+      properties:
+        id: { type: number, format: int32 }
+        sku: { type: string }
+        name: { type: string }
+        category: { type: string }
+        brand: { type: string }
+        accent:
+          type: string
+          enum: [pink, orange]
+        unitPrice: { type: number }
+        stock: { type: number, format: int32 }
+        minStock: { type: number, format: int32 }
+        status:
+          type: string
+          enum: [normal, low, out]
+        updatedAt: { type: string, format: date-time }
+    ProductInput:
+      type: object
+      required: [sku, name, category, brand, accent, unitPrice, stock, minStock]
+      properties:
+        sku: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        category: { type: string, minLength: 1 }
+        brand: { type: string, minLength: 1 }
+        accent:
+          type: string
+          enum: [pink, orange]
+        unitPrice: { type: number, minimum: 0 }
+        stock: { type: number, format: int32, minimum: 0 }
+        minStock: { type: number, format: int32, minimum: 0 }
+    ProductUpdate:
+      type: object
+      properties:
+        sku: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        category: { type: string, minLength: 1 }
+        brand: { type: string, minLength: 1 }
+        accent:
+          type: string
+          enum: [pink, orange]
+        unitPrice: { type: number, minimum: 0 }
+        minStock: { type: number, format: int32, minimum: 0 }
+    StockMovementInput:
+      type: object
+      required: [type, quantity]
+      properties:
+        type:
+          type: string
+          enum: [in, out]
+        quantity: { type: number, format: int32, minimum: 1 }
+        note: { type: string }
+    DashboardSummary:
+      type: object
+      required: [totalProducts, totalUnits, lowStock, outOfStock, inventoryValue]
+      properties:
+        totalProducts: { type: number, format: int32 }
+        totalUnits: { type: number, format: int32 }
+        lowStock: { type: number, format: int32 }
+        outOfStock: { type: number, format: int32 }
+        inventoryValue: { type: number }
+    Activity:
+      type: object
+      required: [id, productName, type, quantity, createdAt]
+      properties:
+        id: { type: number, format: int32 }
+        productName: { type: string }
+        type:
+          type: string
+          enum: [in, out]
+        quantity: { type: number, format: int32 }
+        note: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
 

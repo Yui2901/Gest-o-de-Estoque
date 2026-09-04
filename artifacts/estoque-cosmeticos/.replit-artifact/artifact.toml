@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Estoque Cosméticos"
+description = "Sistema web para uma revendedora de cosméticos acompanhar produtos, entradas, retiradas e cadastro do catálogo com segurança e clareza."
+version = "1.0.0"
+id = "artifacts/estoque-cosmeticos"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21165
+
+[services.development]
+run = "pnpm --filter @workspace/estoque-cosmeticos run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/estoque-cosmeticos", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/estoque-cosmeticos/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21165"
+BASE_PATH = "/"
