@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
 import {
@@ -21,8 +21,11 @@ import {
   Plus,
   ReceiptText,
   Search,
+  Save,
   Trash2,
   TrendingDown,
+  UserCircle,
+  Check,
   X,
 } from 'lucide-react';
 import {
@@ -48,6 +51,35 @@ const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: '
 const number = new Intl.NumberFormat('pt-BR');
 
 type StatusFilter = 'all' | 'normal' | 'low' | 'out';
+type SellerProfile = {
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  store: string;
+};
+
+const defaultProfile: SellerProfile = {
+  name: 'Marina Costa',
+  role: 'Operação',
+  email: 'marina@exemplo.com',
+  phone: '(11) 98765-4321',
+  store: 'Nuvem Cosméticos',
+};
+
+function readProfile(): SellerProfile {
+  try {
+    const saved = window.localStorage.getItem('seller-profile');
+    return saved ? { ...defaultProfile, ...JSON.parse(saved) as Partial<SellerProfile> } : defaultProfile;
+  } catch {
+    return defaultProfile;
+  }
+}
+
+function profileInitials(name: string) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'MC';
+}
+
 type ProductForm = {
   sku: string;
   name: string;
@@ -109,9 +141,16 @@ function BrandMark() {
 function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profile, setProfile] = useState<SellerProfile>(readProfile);
+  useEffect(() => {
+    const syncProfile = () => setProfile(readProfile());
+    window.addEventListener('profilechange', syncProfile);
+    return () => window.removeEventListener('profilechange', syncProfile);
+  }, []);
   const links = [
     { href: '/', label: 'Visão geral', icon: Home },
     { href: '/produtos', label: 'Produtos', icon: LayoutGrid },
+    { href: '/perfil', label: 'Meu perfil', icon: UserCircle },
   ];
   return <div className="min-h-[100dvh] bg-background text-foreground">
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
@@ -135,8 +174,8 @@ function Shell({ children }: { children: ReactNode }) {
           <Link href="/produtos?status=low" data-testid="link-low-stock" className="mt-3 inline-flex items-center gap-1 text-[12px] font-bold text-sidebar-primary">Ver alertas <ChevronRight size={13} /></Link>
         </div>
         <div className="mt-5 flex items-center gap-3 border-t border-sidebar-border pt-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#df693f] text-xs font-extrabold text-white">MC</div>
-          <div><p className="text-xs font-bold">Marina Costa</p><p className="text-[10px] text-sidebar-foreground/45">Operação</p></div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#df693f] text-xs font-extrabold text-white">{profileInitials(profile.name)}</div>
+          <div><p className="max-w-[145px] truncate text-xs font-bold">{profile.name}</p><p className="text-[10px] text-sidebar-foreground/45">{profile.role}</p></div>
         </div>
       </div>
     </aside>
@@ -181,13 +220,14 @@ function Dashboard() {
   const summaryQuery = useGetDashboardSummary();
   const activityQuery = useListActivity();
   const productsQuery = useListProducts({}, { query: { staleTime: 30_000, queryKey: getListProductsQueryKey({}) } });
+  const profile = readProfile();
   const summary = summaryQuery.data;
   const products = productsQuery.data ?? [];
   const attention = useMemo(() => products.filter((product) => product.status !== 'normal').slice(0, 4), [products]);
   const activity = (activityQuery.data ?? []).slice(0, 6);
   const hasError = summaryQuery.isError || activityQuery.isError;
   return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11">
-    <PageHeader eyebrow="terça, 24 de junho" title="Bom dia, Marina." description="Seu inventário em um só lugar. Aqui está o que pede atenção hoje." action={<Link href="/produtos/novo" data-testid="link-new-product-dashboard" className="inline-flex w-fit items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:-translate-y-0.5 hover:brightness-105"><Plus size={16} /> Novo produto</Link>} />
+    <PageHeader eyebrow="terça, 24 de junho" title={`Bom dia, ${profile.name.split(' ')[0] || 'por aqui'}.`} description="Seu inventário em um só lugar. Aqui está o que pede atenção hoje." action={<Link href="/produtos/novo" data-testid="link-new-product-dashboard" className="inline-flex w-fit items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:-translate-y-0.5 hover:brightness-105"><Plus size={16} /> Novo produto</Link>} />
     {hasError ? <QueryError onRetry={() => { void summaryQuery.refetch(); void activityQuery.refetch(); }} /> : <>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryQuery.isLoading ? Array.from({ length: 4 }).map((_, index) => <SkeletonBlock key={index} className="h-[164px]" />) : summary ? <>
@@ -308,8 +348,79 @@ function ProductDetail({ id }: { id: number }) {
   return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11"><Link href="/produtos" data-testid="link-back-catalog" className="mb-7 inline-flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={15} /> Voltar para produtos</Link><div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><div className="mb-3 flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${product.accent === 'pink' ? 'bg-[#ee7e9f]' : 'bg-[#df693f]'}`} /><span className="font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">{product.brand} · {product.sku}</span></div><h1 data-testid="text-product-detail-name" className="text-[30px] font-extrabold leading-[1.1] tracking-[-.05em] sm:text-[40px]">{product.name}</h1><p className="mt-2 text-sm text-muted-foreground">{product.category} · atualizado {formatDate(product.updatedAt)}</p></div><div className="flex items-center gap-2"><Link href={`/produtos/${id}/editar`} data-testid="link-edit-product" className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-muted"><Pencil size={15} /> Editar</Link><Link href="/produtos/novo" data-testid="link-detail-new-product" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground"><Plus size={15} /> Novo produto</Link></div></div><div className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]"><div className="space-y-5"><div className="grid gap-4 sm:grid-cols-3"><div className="rounded-2xl border border-border/80 bg-card p-5"><p className="text-[11px] font-bold text-muted-foreground">Disponível agora</p><p data-testid="text-product-stock" className="mt-2 text-3xl font-extrabold tracking-[-.05em] tabular">{product.stock}<span className="ml-1 text-sm font-medium text-muted-foreground">un.</span></p><div className="mt-3"><StatusPill status={product.status} /></div></div><div className="rounded-2xl border border-border/80 bg-card p-5"><p className="text-[11px] font-bold text-muted-foreground">Preço unitário</p><p className="mt-2 text-2xl font-extrabold tracking-[-.05em] tabular">{currency.format(product.unitPrice)}</p><p className="mt-3 text-[10px] text-muted-foreground">valor de venda</p></div><div className="rounded-2xl border border-border/80 bg-card p-5"><p className="text-[11px] font-bold text-muted-foreground">Estoque mínimo</p><p className="mt-2 text-3xl font-extrabold tracking-[-.05em] tabular">{product.minStock}<span className="ml-1 text-sm font-medium text-muted-foreground">un.</span></p><p className="mt-3 text-[10px] text-muted-foreground">ponto de reposição</p></div></div><div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-6"><div className={`absolute right-0 top-0 h-32 w-32 rounded-bl-[80px] ${product.accent === 'pink' ? 'bg-[#fbe8ef]' : 'bg-[#fff0e4]'}`} /><div className="relative"><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Leitura rápida</p><h2 className="mt-2 text-lg font-extrabold tracking-[-.03em]">{product.status === 'normal' ? 'Este item está respirando bem.' : product.status === 'low' ? 'Este item está pedindo atenção.' : 'Este item está sem unidades.'}</h2><p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{product.status === 'normal' ? `Há ${product.stock - product.minStock} unidades acima do mínimo. Você pode seguir a rotina sem pressa.` : product.status === 'low' ? `Restam ${product.stock} unidades e o mínimo definido é ${product.minStock}. Vale incluir na próxima compra.` : 'Registre uma entrada assim que a reposição chegar para manter o catálogo confiável.'}</p><div className="mt-6 h-2 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${product.accent === 'pink' ? 'bg-[#ee7e9f]' : 'bg-[#df693f]'}`} style={{ width: `${Math.min(100, product.minStock ? (product.stock / product.minStock) * 100 : 100)}%` }} /></div><div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground"><span>0 un.</span><span>mínimo {product.minStock}</span></div></div></div></div><div className="rounded-2xl border border-border/80 bg-card p-6 shadow-[0_4px_22px_rgba(91,44,61,.035)]"><div className="mb-6"><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Movimentar estoque</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Registrar entrada ou saída</h2></div><form onSubmit={submitMovement}><div className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-1"><button type="button" data-testid="button-stock-in" onClick={() => setMovementType('in')} className={`flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-bold transition ${movementType === 'in' ? 'bg-card text-emerald-700 shadow-sm' : 'text-muted-foreground'}`}><ArrowDownToLine size={15} /> Entrada</button><button type="button" data-testid="button-stock-out" onClick={() => setMovementType('out')} className={`flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-bold transition ${movementType === 'out' ? 'bg-card text-orange-700 shadow-sm' : 'text-muted-foreground'}`}><ArrowUpFromLine size={15} /> Saída</button></div><label className="mt-5 block"><span className="mb-2 block text-[11px] font-bold text-muted-foreground">Quantidade</span><input type="number" min="1" step="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} data-testid="input-stock-quantity" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></label><label className="mt-4 block"><span className="mb-2 block text-[11px] font-bold text-muted-foreground">Nota <span className="font-normal opacity-70">(opcional)</span></span><textarea value={note} onChange={(event) => setNote(event.target.value)} data-testid="input-stock-note" placeholder={movementType === 'in' ? 'Ex.: compra com fornecedor' : 'Ex.: venda pelo site'} rows={3} className="w-full resize-none rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15" /></label>{movementError && <p className="mt-3 text-xs font-bold text-destructive">{movementError}</p>}{movement.isError && <p className="mt-3 text-xs font-bold text-destructive">Não foi possível registrar esta movimentação.</p>}<button type="submit" disabled={movement.isPending} data-testid="button-submit-stock-movement" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-foreground py-3 text-xs font-extrabold text-background transition hover:opacity-90 disabled:opacity-60">{movement.isPending && <Loader2 size={15} className="animate-spin" />} Registrar {movementType === 'in' ? 'entrada' : 'saída'}</button></form><div className="mt-5 flex items-start gap-2 rounded-xl bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground"><CircleAlert className="mt-0.5 shrink-0" size={14} /> O saldo é atualizado automaticamente e aparece no painel.</div></div></div></div>;
 }
 
+function ProfilePage() {
+  const [profile, setProfile] = useState<SellerProfile>(readProfile);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  const setField = (key: keyof SellerProfile, value: string) => {
+    setSaved(false);
+    setError('');
+    setProfile((current) => ({ ...current, [key]: value }));
+  };
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!profile.name.trim()) {
+      setError('Informe seu nome para salvar o perfil.');
+      return;
+    }
+    try {
+      window.localStorage.setItem('seller-profile', JSON.stringify({
+        ...profile,
+        name: profile.name.trim(),
+        role: profile.role.trim() || 'Operação',
+      }));
+      window.dispatchEvent(new Event('profilechange'));
+      setProfile(readProfile());
+      setSaved(true);
+    } catch {
+      setError('Não foi possível salvar agora. Tente novamente.');
+    }
+  };
+
+  return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11">
+    <PageHeader eyebrow="conta" title="Meu perfil" description="Mantenha seus dados atualizados para deixar a operação com a sua cara." />
+    <form onSubmit={submit} className="max-w-4xl">
+      <div className="grid gap-5 lg:grid-cols-[.72fr_1.28fr]">
+        <section className="relative overflow-hidden rounded-2xl bg-sidebar p-6 text-sidebar-foreground shadow-[0_12px_32px_rgba(61,30,44,.12)]">
+          <div className="absolute -right-14 -top-14 h-40 w-40 rounded-full border-[24px] border-[#df693f]/25" />
+          <div className="absolute -bottom-20 -left-14 h-44 w-44 rounded-full border-[22px] border-[#ee7e9f]/20" />
+          <div className="relative">
+            <p className="font-mono text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/50">Sua presença</p>
+            <div className="mt-7 flex h-24 w-24 items-center justify-center rounded-[28px] border-4 border-[#f6b3c7]/30 bg-[#ee7e9f] text-3xl font-extrabold text-[#3d1e2c] shadow-[0_10px_25px_rgba(238,126,159,.2)]">{profileInitials(profile.name)}</div>
+            <h2 className="mt-6 text-xl font-extrabold tracking-[-.04em]">{profile.name || 'Seu nome'}</h2>
+            <p className="mt-1 text-sm text-sidebar-foreground/60">{profile.role || 'Operação'}</p>
+            <div className="mt-8 border-t border-sidebar-border pt-5">
+              <p className="text-[11px] leading-relaxed text-sidebar-foreground/65">Esses dados aparecem no acesso rápido do sistema e ajudam a identificar quem está cuidando do estoque.</p>
+            </div>
+          </div>
+        </section>
+        <section className="rounded-2xl border border-border/80 bg-card p-6 shadow-[0_4px_22px_rgba(91,44,61,.035)] sm:p-7">
+          <div className="mb-7 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fbe8ef] text-[#c44b72]"><UserCircle size={19} /></div>
+            <div><h2 className="text-sm font-extrabold">Informações do perfil</h2><p className="mt-0.5 text-[11px] text-muted-foreground">Dados usados para personalizar seu espaço.</p></div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nome completo" value={profile.name} onChange={(value) => setField('name', value)} placeholder="Ex.: Marina Costa" testId="input-profile-name" required />
+            <Field label="Função" value={profile.role} onChange={(value) => setField('role', value)} placeholder="Ex.: Operação" testId="input-profile-role" />
+            <Field label="E-mail" value={profile.email} onChange={(value) => setField('email', value)} placeholder="voce@exemplo.com" testId="input-profile-email" type="email" />
+            <Field label="Telefone" value={profile.phone} onChange={(value) => setField('phone', value)} placeholder="(00) 00000-0000" testId="input-profile-phone" type="tel" />
+          </div>
+          <div className="mt-4"><Field label="Nome da loja" value={profile.store} onChange={(value) => setField('store', value)} placeholder="Ex.: Nuvem Cosméticos" testId="input-profile-store" /></div>
+          {error && <p className="mt-4 text-xs font-bold text-destructive">{error}</p>}
+          <div className="mt-7 flex flex-col-reverse items-stretch justify-end gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center">
+            {saved && <span className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-700 sm:mr-auto"><Check size={15} /> Perfil atualizado</span>}
+            <button type="submit" data-testid="button-save-profile" className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:-translate-y-0.5 hover:brightness-105"><Save size={15} /> Salvar alterações</button>
+          </div>
+        </section>
+      </div>
+    </form>
+  </div>;
+}
+
 function AppRouter() {
-  return <Shell><Switch><Route path="/" component={Dashboard} /><Route path="/produtos/novo" component={() => <ProductFormPage />} /><Route path="/produtos/:id/editar" component={() => { const params = useParams<{ id: string }>(); return <ProductFormPage editId={Number(params.id)} />; }} /><Route path="/produtos/:id" component={() => { const params = useParams<{ id: string }>(); return <ProductDetail id={Number(params.id)} />; }} /><Route path="/produtos" component={Catalog} /><Route component={NotFound} /></Switch></Shell>;
+  return <Shell><Switch><Route path="/" component={Dashboard} /><Route path="/perfil" component={ProfilePage} /><Route path="/produtos/novo" component={() => <ProductFormPage />} /><Route path="/produtos/:id/editar" component={() => { const params = useParams<{ id: string }>(); return <ProductFormPage editId={Number(params.id)} />; }} /><Route path="/produtos/:id" component={() => { const params = useParams<{ id: string }>(); return <ProductDetail id={Number(params.id)} />; }} /><Route path="/produtos" component={Catalog} /><Route component={NotFound} /></Switch></Shell>;
 }
 
 function App() {
