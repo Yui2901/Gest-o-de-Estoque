@@ -1,4 +1,4 @@
-import { integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { bigint, integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { productsTable } from "./products";
@@ -9,7 +9,7 @@ export const stockMovementsTable = pgTable("stock_movements", {
     .notNull()
     .references(() => productsTable.id, { onDelete: "cascade" }),
   type: text("type").notNull(),
-  quantity: integer("quantity").notNull(),
+  quantity: bigint("quantity", { mode: "number" }).notNull(),
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

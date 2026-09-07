@@ -8,7 +8,7 @@
 
 export interface DashboardSummary {
   totalProducts: number;
-  totalUnits: number;
+  totalUnits: bigint;
   lowStock: number;
   outOfStock: number;
   inventoryValue: number;

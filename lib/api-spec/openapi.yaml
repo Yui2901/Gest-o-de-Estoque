@@ -185,8 +185,8 @@ components:
           type: string
           enum: [pink, orange]
         unitPrice: { type: number }
-        stock: { type: number, format: int32 }
-        minStock: { type: number, format: int32 }
+        stock: { type: number, format: int64 }
+        minStock: { type: number, format: int64 }
         status:
           type: string
           enum: [normal, low, out]
@@ -203,8 +203,8 @@ components:
           type: string
           enum: [pink, orange]
         unitPrice: { type: number, minimum: 0 }
-        stock: { type: number, format: int32, minimum: 0 }
-        minStock: { type: number, format: int32, minimum: 0 }
+        stock: { type: number, format: int64, minimum: 0 }
+        minStock: { type: number, format: int64, minimum: 0 }
     ProductUpdate:
       type: object
       properties:
@@ -216,7 +216,7 @@ components:
           type: string
           enum: [pink, orange]
         unitPrice: { type: number, minimum: 0 }
-        minStock: { type: number, format: int32, minimum: 0 }
+        minStock: { type: number, format: int64, minimum: 0 }
     StockMovementInput:
       type: object
       required: [type, quantity]
@@ -224,14 +224,14 @@ components:
         type:
           type: string
           enum: [in, out]
-        quantity: { type: number, format: int32, minimum: 1 }
+        quantity: { type: number, format: int64, minimum: 1 }
         note: { type: string }
     DashboardSummary:
       type: object
       required: [totalProducts, totalUnits, lowStock, outOfStock, inventoryValue]
       properties:
         totalProducts: { type: number, format: int32 }
-        totalUnits: { type: number, format: int32 }
+        totalUnits: { type: number, format: int64 }
         lowStock: { type: number, format: int32 }
         outOfStock: { type: number, format: int32 }
         inventoryValue: { type: number }
@@ -244,7 +244,7 @@ components:
         type:
           type: string
           enum: [in, out]
-        quantity: { type: number, format: int32 }
+        quantity: { type: number, format: int64 }
         note: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
 

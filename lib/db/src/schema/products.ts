@@ -1,4 +1,4 @@
-import { pgTable, real, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { bigint, pgTable, real, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,8 +10,8 @@ export const productsTable = pgTable("products", {
   brand: text("brand").notNull(),
   accent: text("accent").notNull(),
   unitPrice: real("unit_price").notNull().default(0),
-  stock: integer("stock").notNull().default(0),
-  minStock: integer("min_stock").notNull().default(0),
+  stock: bigint("stock", { mode: "number" }).notNull().default(0),
+  minStock: bigint("min_stock", { mode: "number" }).notNull().default(0),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

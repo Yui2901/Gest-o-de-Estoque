@@ -16,8 +16,8 @@ export interface Product {
   brand: string;
   accent: ProductAccent;
   unitPrice: number;
-  stock: number;
-  minStock: number;
+  stock: bigint;
+  minStock: bigint;
   status: ProductStatus;
   updatedAt: Date;
 }

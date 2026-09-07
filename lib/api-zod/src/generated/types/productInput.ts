@@ -20,7 +20,7 @@ export interface ProductInput {
   /** @minimum 0 */
   unitPrice: number;
   /** @minimum 0 */
-  stock: number;
+  stock: bigint;
   /** @minimum 0 */
-  minStock: number;
+  minStock: bigint;
 }

@@ -59,6 +59,8 @@ type SellerProfile = {
   store: string;
 };
 
+const PROFILE_STORAGE_KEY = 'seller-profile';
+
 const defaultProfile: SellerProfile = {
   name: 'Marina Costa',
   role: 'Operação',
@@ -67,13 +69,31 @@ const defaultProfile: SellerProfile = {
   store: 'Nuvem Cosméticos',
 };
 
+function normalizeProfile(value: unknown): SellerProfile {
+  const saved = value && typeof value === 'object' ? value as Partial<SellerProfile> : {};
+  return {
+    name: typeof saved.name === 'string' && saved.name.trim() ? saved.name.trim() : defaultProfile.name,
+    role: typeof saved.role === 'string' && saved.role.trim() ? saved.role.trim() : defaultProfile.role,
+    email: typeof saved.email === 'string' ? saved.email : defaultProfile.email,
+    phone: typeof saved.phone === 'string' ? saved.phone : defaultProfile.phone,
+    store: typeof saved.store === 'string' ? saved.store : defaultProfile.store,
+  };
+}
+
 function readProfile(): SellerProfile {
   try {
-    const saved = window.localStorage.getItem('seller-profile');
-    return saved ? { ...defaultProfile, ...JSON.parse(saved) as Partial<SellerProfile> } : defaultProfile;
+    const saved = window.localStorage.getItem(PROFILE_STORAGE_KEY);
+    return saved ? normalizeProfile(JSON.parse(saved)) : defaultProfile;
   } catch {
     return defaultProfile;
   }
+}
+
+function saveProfile(profile: SellerProfile) {
+  const normalized = normalizeProfile(profile);
+  window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(normalized));
+  window.dispatchEvent(new Event('profilechange'));
+  return normalized;
 }
 
 function profileInitials(name: string) {
@@ -145,7 +165,11 @@ function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const syncProfile = () => setProfile(readProfile());
     window.addEventListener('profilechange', syncProfile);
-    return () => window.removeEventListener('profilechange', syncProfile);
+    window.addEventListener('storage', syncProfile);
+    return () => {
+      window.removeEventListener('profilechange', syncProfile);
+      window.removeEventListener('storage', syncProfile);
+    };
   }, []);
   const links = [
     { href: '/', label: 'Visão geral', icon: Home },
@@ -366,13 +390,14 @@ function ProfilePage() {
       return;
     }
     try {
-      window.localStorage.setItem('seller-profile', JSON.stringify({
+      setProfile(saveProfile({
         ...profile,
         name: profile.name.trim(),
         role: profile.role.trim() || 'Operação',
+        email: profile.email.trim(),
+        phone: profile.phone.trim(),
+        store: profile.store.trim(),
       }));
-      window.dispatchEvent(new Event('profilechange'));
-      setProfile(readProfile());
       setSaved(true);
     } catch {
       setError('Não foi possível salvar agora. Tente novamente.');

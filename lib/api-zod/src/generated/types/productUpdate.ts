@@ -20,5 +20,5 @@ export interface ProductUpdate {
   /** @minimum 0 */
   unitPrice?: number;
   /** @minimum 0 */
-  minStock?: number;
+  minStock?: bigint;
 }

@@ -11,7 +11,7 @@ export interface Activity {
   id: number;
   productName: string;
   type: ActivityType;
-  quantity: number;
+  quantity: bigint;
   /** @nullable */
   note?: string | null;
   createdAt: Date;
