@@ -197,6 +197,7 @@ export const ListActivityResponse = zod.array(ListActivityResponseItem)
  */
 export const ListOrdersResponseItem = zod.object({
   "id": zod.number(),
+  "type": zod.enum(['in', 'out']),
   "status": zod.enum(['finalized']),
   "totalItems": zod.number(),
   "totalValue": zod.number(),
@@ -215,13 +216,14 @@ export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
 
 
 /**
- * @summary Finalize a purchase order and add stock
+ * @summary Finalize a stock entry or exit order
  */
 
 
 
 
 export const CreateOrderBody = zod.object({
+  "type": zod.enum(['in', 'out']),
   "items": zod.array(zod.object({
   "productId": zod.number(),
   "quantity": zod.number().min(1)
@@ -230,6 +232,7 @@ export const CreateOrderBody = zod.object({
 
 export const CreateOrderResponse = zod.object({
   "id": zod.number(),
+  "type": zod.enum(['in', 'out']),
   "status": zod.enum(['finalized']),
   "totalItems": zod.number(),
   "totalValue": zod.number(),

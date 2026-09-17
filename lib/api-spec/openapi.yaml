@@ -182,7 +182,7 @@ paths:
     post:
       operationId: createOrder
       tags: [orders]
-      summary: Finalize a purchase order and add stock
+      summary: Finalize a stock entry or exit order
       requestBody:
         required: true
         content:
@@ -290,8 +290,11 @@ components:
         quantity: { type: number, format: int64, minimum: 1 }
     OrderInput:
       type: object
-      required: [items]
+      required: [type, items]
       properties:
+        type:
+          type: string
+          enum: [in, out]
         items:
           type: array
           minItems: 1
@@ -310,9 +313,12 @@ components:
         totalValue: { type: number }
     Order:
       type: object
-      required: [id, status, totalItems, totalValue, items, createdAt]
+      required: [id, type, status, totalItems, totalValue, items, createdAt]
       properties:
         id: { type: number, format: int32 }
+        type:
+          type: string
+          enum: [in, out]
         status:
           type: string
           enum: [finalized]

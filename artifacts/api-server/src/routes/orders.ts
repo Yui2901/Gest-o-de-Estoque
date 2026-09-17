@@ -9,6 +9,7 @@ import {
 
 const router: IRouter = Router();
 
+type OrderType = "in" | "out";
 type OrderStatus = "finalized";
 
 function formatOrder(
@@ -17,6 +18,7 @@ function formatOrder(
 ) {
   return {
     ...order,
+    type: order.type as OrderType,
     status: order.status as OrderStatus,
     items,
   };
@@ -88,7 +90,7 @@ router.post("/orders", async (req, res): Promise<void> => {
 
       const [createdOrder] = await tx
         .insert(ordersTable)
-        .values({ status: "finalized", totalItems, totalValue })
+        .values({ type: parsed.data.type, status: "finalized", totalItems, totalValue })
         .returning();
 
       const createdItems = await tx.insert(orderItemsTable).values(
@@ -96,15 +98,22 @@ router.post("/orders", async (req, res): Promise<void> => {
       ).returning();
 
       for (const item of items) {
+        if (parsed.data.type === "out" && item.quantity > productsById.get(item.productId)!.stock) {
+          throw new Error(`A saída de ${item.productName} é maior que o estoque disponível`);
+        }
         await tx
           .update(productsTable)
-          .set({ stock: sql`${productsTable.stock} + ${item.quantity}` })
+          .set({
+            stock: parsed.data.type === "in"
+              ? sql`${productsTable.stock} + ${item.quantity}`
+              : sql`${productsTable.stock} - ${item.quantity}`,
+          })
           .where(eq(productsTable.id, item.productId));
         await tx.insert(stockMovementsTable).values({
           productId: item.productId,
-          type: "in",
+          type: parsed.data.type,
           quantity: item.quantity,
-          note: `Pedido de compras #${createdOrder.id}`,
+          note: `${parsed.data.type === "in" ? "Entrada" : "Saída"} pelo pedido #${createdOrder.id}`,
         });
       }
 

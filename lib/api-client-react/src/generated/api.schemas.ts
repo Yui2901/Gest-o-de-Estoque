@@ -137,7 +137,16 @@ export interface OrderItemInput {
   quantity: number;
 }
 
+export type OrderInputType = typeof OrderInputType[keyof typeof OrderInputType];
+
+
+export const OrderInputType = {
+  in: 'in',
+  out: 'out',
+} as const;
+
 export interface OrderInput {
+  type: OrderInputType;
   /** @minItems 1 */
   items: OrderItemInput[];
 }
@@ -152,6 +161,14 @@ export interface OrderItem {
   totalValue: number;
 }
 
+export type OrderType = typeof OrderType[keyof typeof OrderType];
+
+
+export const OrderType = {
+  in: 'in',
+  out: 'out',
+} as const;
+
 export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus];
 
 
@@ -161,6 +178,7 @@ export const OrderStatus = {
 
 export interface Order {
   id: number;
+  type: OrderType;
   status: OrderStatus;
   totalItems: number;
   totalValue: number;

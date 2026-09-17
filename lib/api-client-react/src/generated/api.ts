@@ -747,7 +747,7 @@ export const getCreateOrderUrl = () => {
 }
 
 /**
- * @summary Finalize a purchase order and add stock
+ * @summary Finalize a stock entry or exit order
  */
 export const createOrder = async (orderInput: OrderInput, options?: Parameters<typeof customFetch>[1]): Promise<Order> => {
 
@@ -796,7 +796,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateOrderMutationError = ErrorType<void>
 
     /**
- * @summary Finalize a purchase order and add stock
+ * @summary Finalize a stock entry or exit order
  */
 export const useCreateOrder = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOrder>>, TError,{data: BodyType<OrderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

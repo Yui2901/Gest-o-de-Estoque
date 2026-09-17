@@ -5,9 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { OrderInputType } from './orderInputType';
 import type { OrderItemInput } from './orderItemInput';
 
 export interface OrderInput {
+  type: OrderInputType;
   /** @minItems 1 */
   items: OrderItemInput[];
 }

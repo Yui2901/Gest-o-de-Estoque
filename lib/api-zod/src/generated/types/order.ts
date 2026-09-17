@@ -7,9 +7,11 @@
  */
 import type { OrderItem } from './orderItem';
 import type { OrderStatus } from './orderStatus';
+import type { OrderType } from './orderType';
 
 export interface Order {
   id: number;
+  type: OrderType;
   status: OrderStatus;
   totalItems: bigint;
   totalValue: number;
