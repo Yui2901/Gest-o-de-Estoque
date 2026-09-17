@@ -131,6 +131,43 @@ export interface Activity {
   createdAt: string;
 }
 
+export interface OrderItemInput {
+  productId: number;
+  /** @minimum 1 */
+  quantity: number;
+}
+
+export interface OrderInput {
+  /** @minItems 1 */
+  items: OrderItemInput[];
+}
+
+export interface OrderItem {
+  id: number;
+  productId: number;
+  productName: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  totalValue: number;
+}
+
+export type OrderStatus = typeof OrderStatus[keyof typeof OrderStatus];
+
+
+export const OrderStatus = {
+  finalized: 'finalized',
+} as const;
+
+export interface Order {
+  id: number;
+  status: OrderStatus;
+  totalItems: number;
+  totalValue: number;
+  items: OrderItem[];
+  createdAt: string;
+}
+
 export type ListProductsParams = {
 search?: string;
 status?: ListProductsStatus;

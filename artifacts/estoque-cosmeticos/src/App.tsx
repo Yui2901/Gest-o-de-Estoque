@@ -22,6 +22,7 @@ import {
   ReceiptText,
   Search,
   Save,
+  ShoppingCart,
   Trash2,
   TrendingDown,
   UserCircle,
@@ -31,16 +32,19 @@ import {
 import {
   getGetDashboardSummaryQueryKey,
   getListActivityQueryKey,
+  getListOrdersQueryKey,
   getListProductsQueryKey,
+  useCreateOrder,
   useCreateProduct,
   useCreateStockMovement,
   useDeleteProduct,
   useGetDashboardSummary,
   useListActivity,
+  useListOrders,
   useListProducts,
   useUpdateProduct,
 } from '@workspace/api-client-react';
-import type { Product, ProductAccent, ProductInput, ProductStatus, StockMovementInput } from '@workspace/api-client-react';
+import type { Order, Product, ProductAccent, ProductInput, ProductStatus, StockMovementInput } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -174,6 +178,7 @@ function Shell({ children }: { children: ReactNode }) {
   const links = [
     { href: '/', label: 'Visão geral', icon: Home },
     { href: '/produtos', label: 'Produtos', icon: LayoutGrid },
+    { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
     { href: '/perfil', label: 'Meu perfil', icon: UserCircle },
   ];
   return <div className="min-h-[100dvh] bg-background text-foreground">
@@ -303,10 +308,103 @@ function Catalog() {
     deleteMutation.mutate({ id: deleteTarget.id }, { onSuccess: () => { setDeleteTarget(null); void client.invalidateQueries({ queryKey: getListProductsQueryKey() }); void client.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() }); } });
   };
   return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11">
-    <PageHeader eyebrow="catálogo" title="Produtos" description="Uma leitura rápida do que está disponível, quase acabando ou já saiu de cena." action={<Link href="/produtos/novo" data-testid="link-new-product-catalog" className="inline-flex w-fit items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:-translate-y-0.5 hover:brightness-105"><Plus size={16} /> Novo produto</Link>} />
+     <PageHeader eyebrow="catálogo" title="Produtos" description="Uma leitura rápida do que está disponível, quase acabando ou já saiu de cena." action={<div className="flex flex-wrap gap-2"><Link href="/pedidos" data-testid="link-new-order-catalog" className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-extrabold text-foreground transition hover:bg-muted"><ShoppingCart size={16} /> Montar pedido</Link><Link href="/produtos/novo" data-testid="link-new-product-catalog" className="inline-flex w-fit items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:-translate-y-0.5 hover:brightness-105"><Plus size={16} /> Novo produto</Link></div>} />
     <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-border/80 bg-card p-3 sm:flex-row sm:items-center"><label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-search-products" placeholder="Buscar por nome, SKU ou marca..." className="h-11 w-full rounded-xl bg-muted/50 pl-10 pr-3 text-sm outline-none ring-primary/20 placeholder:text-muted-foreground/75 focus:ring-2" /></label><div className="flex gap-2"><select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)} data-testid="select-product-status" className="h-11 rounded-xl border-0 bg-muted/50 px-3 text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20"><option value="all">Todos os status</option><option value="normal">Em dia</option><option value="low">Estoque baixo</option><option value="out">Esgotado</option></select><select value={category} onChange={(event) => setCategory(event.target.value)} data-testid="select-product-category" className="hidden h-11 rounded-xl border-0 bg-muted/50 px-3 text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20 sm:block"><option value="all">Todas as categorias</option>{categories.map((item) => <option key={item} value={item}>{item}</option>)}</select></div></div>
     {query.isError ? <QueryError onRetry={() => void query.refetch()} /> : query.isLoading ? <div className="space-y-2 rounded-2xl border border-border/80 bg-card p-4">{Array.from({ length: 7 }).map((_, index) => <SkeletonBlock key={index} className="h-14" />)}</div> : <ProductTable products={products} onDelete={setDeleteTarget} />}
     {deleteTarget && <ConfirmDialog title="Excluir este produto?" description={`“${deleteTarget.name}” e seu histórico deixarão de aparecer no catálogo.`} confirmLabel={deleteMutation.isPending ? 'Excluindo...' : 'Excluir produto'} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} danger />}
+  </div>;
+}
+
+function OrderSummary({ order, featured = false }: { order: Order; featured?: boolean }) {
+  return <section className={`rounded-2xl border p-6 ${featured ? 'border-emerald-200 bg-emerald-50/60' : 'border-border/80 bg-card shadow-[0_4px_22px_rgba(91,44,61,.035)]'}`}>
+    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+      <div>
+        <p className={`font-mono text-[10px] uppercase tracking-[.18em] ${featured ? 'text-emerald-700' : 'text-muted-foreground'}`}>{featured ? 'pedido finalizado' : 'pedido de compras'}</p>
+        <h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Pedido #{order.id}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
+      </div>
+      <span className="inline-flex w-fit items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-700">Estoque atualizado</span>
+    </div>
+    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="rounded-xl bg-background/80 p-4"><p className="text-[11px] font-bold text-muted-foreground">Itens pedidos</p><p className="mt-1 text-2xl font-extrabold tabular">{number.format(order.totalItems)} <span className="text-xs font-medium text-muted-foreground">un.</span></p></div>
+      <div className="rounded-xl bg-background/80 p-4"><p className="text-[11px] font-bold text-muted-foreground">Valor do pedido</p><p className="mt-1 text-2xl font-extrabold tabular">{currency.format(order.totalValue)}</p></div>
+    </div>
+    <div className="mt-5 border-t border-border/60 pt-4">
+      <p className="mb-3 font-mono text-[10px] uppercase tracking-[.16em] text-muted-foreground">Itens comprados</p>
+      <div className="space-y-2.5">{order.items.map((item) => <div key={item.id} className="flex items-center gap-3 text-sm"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted font-mono text-[10px] font-bold">{item.quantity}</span><span className="min-w-0 flex-1"><span className="block truncate font-bold">{item.productName}</span><span className="block font-mono text-[10px] text-muted-foreground">{item.sku} · {currency.format(item.unitPrice)} cada</span></span><span className="font-mono text-xs font-bold tabular">{currency.format(item.totalValue)}</span></div>)}</div>
+    </div>
+  </section>;
+}
+
+function OrdersPage() {
+  const productsQuery = useListProducts({}, { query: { staleTime: 15_000, queryKey: getListProductsQueryKey({}) } });
+  const ordersQuery = useListOrders();
+  const createOrder = useCreateOrder();
+  const client = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<Record<number, number>>({});
+  const [lastOrder, setLastOrder] = useState<Order | null>(null);
+  const products = productsQuery.data ?? [];
+  const orders = ordersQuery.data ?? [];
+  const filteredProducts = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return products;
+    return products.filter((product) => `${product.name} ${product.brand} ${product.sku}`.toLowerCase().includes(query));
+  }, [products, search]);
+  const selectedItems = useMemo(() => Object.entries(selected)
+    .map(([id, quantity]) => {
+      const product = products.find((item) => item.id === Number(id));
+      return product ? { product, quantity } : null;
+    })
+    .filter((item): item is { product: Product; quantity: number } => item !== null && item.quantity > 0), [products, selected]);
+  const totalItems = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
+  const totalValue = selectedItems.reduce((sum, item) => sum + item.product.unitPrice * item.quantity, 0);
+
+  const changeQuantity = (productId: number, amount: number) => {
+    setSelected((current) => {
+      const nextQuantity = (current[productId] ?? 0) + amount;
+      if (nextQuantity <= 0) {
+        const next = { ...current };
+        delete next[productId];
+        return next;
+      }
+      return { ...current, [productId]: nextQuantity };
+    });
+  };
+
+  const finalizeOrder = () => {
+    if (!selectedItems.length || createOrder.isPending) return;
+    createOrder.mutate({
+      data: { items: selectedItems.map(({ product, quantity }) => ({ productId: product.id, quantity })) },
+    }, {
+      onSuccess: (order) => {
+        setLastOrder(order);
+        setSelected({});
+        void client.invalidateQueries({ queryKey: getListProductsQueryKey() });
+        void client.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+        void client.invalidateQueries({ queryKey: getListActivityQueryKey() });
+        void client.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+      },
+    });
+  };
+
+  return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11">
+    <PageHeader eyebrow="compras" title="Pedidos" description="Monte uma compra com os produtos do catálogo e atualize o estoque quando finalizar." action={<Link href="/produtos" data-testid="link-orders-catalog" className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-extrabold text-foreground transition hover:bg-muted"><LayoutGrid size={16} /> Ver catálogo</Link>} />
+    <div className="grid gap-5 xl:grid-cols-[1.18fr_.82fr]">
+      <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-[0_4px_22px_rgba(91,44,61,.035)] sm:p-6">
+        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">catálogo integrado</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Escolha os produtos</h2></div><span className="text-xs text-muted-foreground">{products.length} {products.length === 1 ? 'produto disponível' : 'produtos disponíveis'}</span></div>
+        <label className="relative mb-5 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-order-search" placeholder="Buscar produto, marca ou SKU..." className="h-11 w-full rounded-xl bg-muted/50 pl-10 pr-3 text-sm outline-none ring-primary/20 placeholder:text-muted-foreground/75 focus:ring-2" /></label>
+        {productsQuery.isError ? <QueryError onRetry={() => void productsQuery.refetch()} /> : productsQuery.isLoading ? <div className="space-y-3">{Array.from({ length: 4 }).map((_, index) => <SkeletonBlock key={index} className="h-20" />)}</div> : filteredProducts.length === 0 ? <EmptyState icon={Boxes} title="Nenhum produto encontrado" description="Cadastre o produto no catálogo ou ajuste a busca." /> : <div className="space-y-2.5">{filteredProducts.map((product) => { const quantity = selected[product.id] ?? 0; return <div key={product.id} data-testid={`order-product-${product.id}`} className={`flex items-center gap-3 rounded-xl border p-3 transition ${quantity > 0 ? 'border-primary/40 bg-primary/5' : 'border-border/70 hover:border-primary/25'}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-extrabold ${product.accent === 'pink' ? 'bg-[#fbe8ef] text-[#c44b72]' : 'bg-[#fff0e4] text-[#d86a3b]'}`}>{product.brand.slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-extrabold">{product.name}</p><p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{product.brand} · {product.sku} · estoque atual {number.format(product.stock)}</p><p className="mt-1 text-xs font-bold text-foreground">{currency.format(product.unitPrice)} <span className="font-normal text-muted-foreground">por unidade</span></p></div>{quantity > 0 ? <div className="flex items-center gap-2 rounded-lg bg-background p-1 shadow-sm"><button type="button" aria-label={`Remover uma unidade de ${product.name}`} onClick={() => changeQuantity(product.id, -1)} data-testid={`button-order-decrease-${product.id}`} className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"><span className="text-lg leading-none">−</span></button><span className="w-8 text-center font-mono text-xs font-bold tabular">{quantity}</span><button type="button" aria-label={`Adicionar uma unidade de ${product.name}`} onClick={() => changeQuantity(product.id, 1)} data-testid={`button-order-increase-${product.id}`} className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground hover:brightness-105"><Plus size={14} /></button></div> : <button type="button" onClick={() => changeQuantity(product.id, 1)} data-testid={`button-order-add-${product.id}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-xs font-bold text-background transition hover:opacity-90"><Plus size={14} /> Adicionar</button>}</div>; })}</div>}
+      </section>
+      <section className="h-fit rounded-2xl border border-border/80 bg-card p-5 shadow-[0_4px_22px_rgba(91,44,61,.035)] sm:p-6 xl:sticky xl:top-6">
+        <div className="mb-6 flex items-start justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">conferência</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Resumo do pedido</h2></div><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff0e4] text-[#d86a3b]"><ReceiptText size={17} /></div></div>
+        {selectedItems.length === 0 ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><ShoppingCart className="mx-auto mb-3 text-muted-foreground" size={24} /><p className="text-sm font-bold">Seu pedido está vazio</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Selecione os produtos e as quantidades que deseja comprar.</p></div> : <><div className="space-y-3">{selectedItems.map(({ product, quantity }) => <div key={product.id} className="flex items-start gap-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{product.name}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{quantity} un. × {currency.format(product.unitPrice)}</p></div><p className="font-mono text-xs font-bold tabular">{currency.format(product.unitPrice * quantity)}</p></div>)}</div><div className="mt-6 border-t border-border/70 pt-5"><div className="flex items-center justify-between text-xs text-muted-foreground"><span>Total de itens</span><span className="font-mono font-bold text-foreground">{number.format(totalItems)} un.</span></div><div className="mt-2 flex items-center justify-between"><span className="text-sm font-extrabold">Valor do pedido</span><span className="font-mono text-xl font-extrabold tabular">{currency.format(totalValue)}</span></div><button type="button" onClick={finalizeOrder} disabled={createOrder.isPending} data-testid="button-finalize-order" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60">{createOrder.isPending && <Loader2 size={15} className="animate-spin" />}{createOrder.isPending ? 'Finalizando pedido...' : 'Finalizar pedido e atualizar estoque'}</button><p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground">Ao finalizar, as quantidades entram no estoque e ficam registradas no histórico.</p></div></>}{createOrder.isError && <p className="mt-4 rounded-xl bg-rose-50 p-3 text-xs font-bold text-destructive">Não foi possível finalizar o pedido. Confira os produtos e tente novamente.</p>}</section>
+    </div>
+    {lastOrder && <div className="mt-6"><OrderSummary order={lastOrder} featured /></div>}
+    <section className="mt-7">
+      <div className="mb-4 flex items-end justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">histórico</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Pedidos finalizados</h2></div><span className="text-xs text-muted-foreground">{orders.length} registrados</span></div>
+      {ordersQuery.isError ? <QueryError onRetry={() => void ordersQuery.refetch()} /> : ordersQuery.isLoading ? <div className="grid gap-4 lg:grid-cols-2"><SkeletonBlock className="h-72" /><SkeletonBlock className="h-72" /></div> : orders.length === 0 ? <EmptyState icon={ClipboardList} title="Nenhum pedido finalizado" description="Os pedidos concluídos aparecerão aqui com seus itens e valores." /> : <div className="grid gap-4 lg:grid-cols-2">{orders.map((order) => <OrderSummary key={order.id} order={order} />)}</div>}
+    </section>
   </div>;
 }
 
@@ -445,7 +543,7 @@ function ProfilePage() {
 }
 
 function AppRouter() {
-  return <Shell><Switch><Route path="/" component={Dashboard} /><Route path="/perfil" component={ProfilePage} /><Route path="/produtos/novo" component={() => <ProductFormPage />} /><Route path="/produtos/:id/editar" component={() => { const params = useParams<{ id: string }>(); return <ProductFormPage editId={Number(params.id)} />; }} /><Route path="/produtos/:id" component={() => { const params = useParams<{ id: string }>(); return <ProductDetail id={Number(params.id)} />; }} /><Route path="/produtos" component={Catalog} /><Route component={NotFound} /></Switch></Shell>;
+  return <Shell><Switch><Route path="/" component={Dashboard} /><Route path="/pedidos" component={OrdersPage} /><Route path="/perfil" component={ProfilePage} /><Route path="/produtos/novo" component={() => <ProductFormPage />} /><Route path="/produtos/:id/editar" component={() => { const params = useParams<{ id: string }>(); return <ProductFormPage editId={Number(params.id)} />; }} /><Route path="/produtos/:id" component={() => { const params = useParams<{ id: string }>(); return <ProductDetail id={Number(params.id)} />; }} /><Route path="/produtos" component={Catalog} /><Route component={NotFound} /></Switch></Shell>;
 }
 
 function App() {

@@ -192,3 +192,57 @@ export const ListActivityResponseItem = zod.object({
 export const ListActivityResponse = zod.array(ListActivityResponseItem)
 
 
+/**
+ * @summary List finalized purchase orders
+ */
+export const ListOrdersResponseItem = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['finalized']),
+  "totalItems": zod.number(),
+  "totalValue": zod.number(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "sku": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "totalValue": zod.number()
+})),
+  "createdAt": zod.coerce.date()
+})
+export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
+
+
+/**
+ * @summary Finalize a purchase order and add stock
+ */
+
+
+
+
+export const CreateOrderBody = zod.object({
+  "items": zod.array(zod.object({
+  "productId": zod.number(),
+  "quantity": zod.number().min(1)
+})).min(1)
+})
+
+export const CreateOrderResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['finalized']),
+  "totalItems": zod.number(),
+  "totalValue": zod.number(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "sku": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "totalValue": zod.number()
+})),
+  "createdAt": zod.coerce.date()
+})
+
+
