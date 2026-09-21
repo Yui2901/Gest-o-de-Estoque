@@ -10,6 +10,10 @@ import type { OrderItemInput } from './orderItemInput';
 
 export interface OrderInput {
   type: OrderInputType;
+  /** @minLength 1 */
+  customerName?: string;
+  /** @minLength 1 */
+  customerPhone?: string;
   /** @minItems 1 */
   items: OrderItemInput[];
 }

@@ -147,6 +147,10 @@ export const OrderInputType = {
 
 export interface OrderInput {
   type: OrderInputType;
+  /** @minLength 1 */
+  customerName?: string;
+  /** @minLength 1 */
+  customerPhone?: string;
   /** @minItems 1 */
   items: OrderItemInput[];
 }
@@ -180,6 +184,10 @@ export interface Order {
   id: number;
   type: OrderType;
   status: OrderStatus;
+  /** @nullable */
+  customerName: string | null;
+  /** @nullable */
+  customerPhone: string | null;
   totalItems: number;
   totalValue: number;
   items: OrderItem[];

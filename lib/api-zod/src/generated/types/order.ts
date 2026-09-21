@@ -13,6 +13,10 @@ export interface Order {
   id: number;
   type: OrderType;
   status: OrderStatus;
+  /** @nullable */
+  customerName: string | null;
+  /** @nullable */
+  customerPhone: string | null;
   totalItems: bigint;
   totalValue: number;
   items: OrderItem[];

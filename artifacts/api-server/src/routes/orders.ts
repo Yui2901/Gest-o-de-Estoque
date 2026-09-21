@@ -20,6 +20,8 @@ function formatOrder(
     ...order,
     type: order.type as OrderType,
     status: order.status as OrderStatus,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
     items,
   };
 }
@@ -60,6 +62,10 @@ router.post("/orders", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Each product can appear only once in an order" });
     return;
   }
+  if (parsed.data.type === "out" && (!parsed.data.customerName?.trim() || !parsed.data.customerPhone?.trim())) {
+    res.status(400).json({ error: "Customer name and phone are required for stock exits" });
+    return;
+  }
 
   try {
     const order = await db.transaction(async (tx) => {
@@ -90,7 +96,14 @@ router.post("/orders", async (req, res): Promise<void> => {
 
       const [createdOrder] = await tx
         .insert(ordersTable)
-        .values({ type: parsed.data.type, status: "finalized", totalItems, totalValue })
+        .values({
+          type: parsed.data.type,
+          status: "finalized",
+          customerName: parsed.data.customerName?.trim() || null,
+          customerPhone: parsed.data.customerPhone?.trim() || null,
+          totalItems,
+          totalValue,
+        })
         .returning();
 
       const createdItems = await tx.insert(orderItemsTable).values(

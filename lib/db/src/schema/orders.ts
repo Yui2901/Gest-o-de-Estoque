@@ -6,6 +6,8 @@ export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
   type: text("type").notNull().default("in"),
   status: text("status").notNull().default("finalized"),
+  customerName: text("customer_name"),
+  customerPhone: text("customer_phone"),
   totalItems: bigint("total_items", { mode: "number" }).notNull().default(0),
   totalValue: real("total_value").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

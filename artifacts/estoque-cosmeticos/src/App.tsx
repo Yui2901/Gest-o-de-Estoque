@@ -12,6 +12,7 @@ import {
   CircleCheck,
   CirclePlus,
   ClipboardList,
+  CalendarDays,
   Home,
   LayoutGrid,
   Loader2,
@@ -25,6 +26,8 @@ import {
   ShoppingCart,
   Trash2,
   TrendingDown,
+  Users,
+  Phone,
   UserCircle,
   Check,
   X,
@@ -133,6 +136,17 @@ function formatDate(value?: string) {
     .replace('.', '');
 }
 
+function monthKey(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthLabel(value: string) {
+  if (!value) return 'Todos os meses';
+  const [year, month] = value.split('-').map(Number);
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
+}
+
 function statusLabel(status: ProductStatus) {
   return status === 'normal' ? 'Em dia' : status === 'low' ? 'Estoque baixo' : 'Esgotado';
 }
@@ -179,6 +193,8 @@ function Shell({ children }: { children: ReactNode }) {
     { href: '/', label: 'Visão geral', icon: Home },
     { href: '/produtos', label: 'Produtos', icon: LayoutGrid },
     { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
+    { href: '/clientes', label: 'Clientes', icon: Users },
+    { href: '/movimentacoes', label: 'Movimentações', icon: CalendarDays },
     { href: '/perfil', label: 'Meu perfil', icon: UserCircle },
   ];
   return <div className="min-h-[100dvh] bg-background text-foreground">
@@ -326,6 +342,7 @@ function OrderSummary({ order, featured = false }: { order: Order; featured?: bo
       </div>
       <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${isEntry ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>{isEntry ? 'Entrada registrada' : 'Saída registrada'}</span>
     </div>
+    {!isEntry && <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-orange-50/70 px-4 py-3 text-xs"><span className="font-bold text-orange-900">{order.customerName || 'Cliente não informado'}</span>{order.customerPhone && <span className="inline-flex items-center gap-1.5 text-orange-800/75"><Phone size={13} />{order.customerPhone}</span>}</div>}
     <div className="mt-5 grid gap-3 sm:grid-cols-2">
       <div className="rounded-xl bg-background/80 p-4"><p className="text-[11px] font-bold text-muted-foreground">Itens pedidos</p><p className="mt-1 text-2xl font-extrabold tabular">{number.format(order.totalItems)} <span className="text-xs font-medium text-muted-foreground">un.</span></p></div>
       <div className="rounded-xl bg-background/80 p-4"><p className="text-[11px] font-bold text-muted-foreground">Valor do pedido</p><p className="mt-1 text-2xl font-extrabold tabular">{currency.format(order.totalValue)}</p></div>
@@ -345,6 +362,9 @@ function OrdersPage() {
   const [search, setSearch] = useState('');
   const [orderType, setOrderType] = useState<'in' | 'out'>('in');
   const [orderFilter, setOrderFilter] = useState<'all' | 'in' | 'out'>('all');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [orderError, setOrderError] = useState('');
   const [selected, setSelected] = useState<Record<number, number>>({});
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const products = productsQuery.data ?? [];
@@ -381,17 +401,32 @@ function OrdersPage() {
   const changeOrderType = (type: 'in' | 'out') => {
     setOrderType(type);
     setSelected({});
+    setCustomerName('');
+    setCustomerPhone('');
+    setOrderError('');
     createOrder.reset();
   };
 
   const finalizeOrder = () => {
     if (!selectedItems.length || createOrder.isPending) return;
+    if (orderType === 'out' && (!customerName.trim() || !customerPhone.trim())) {
+      setOrderError('Informe o nome e o telefone do cliente antes de finalizar a saída.');
+      return;
+    }
+    setOrderError('');
     createOrder.mutate({
-      data: { type: orderType, items: selectedItems.map(({ product, quantity }) => ({ productId: product.id, quantity })) },
+      data: {
+        type: orderType,
+        customerName: orderType === 'out' ? customerName.trim() : undefined,
+        customerPhone: orderType === 'out' ? customerPhone.trim() : undefined,
+        items: selectedItems.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+      },
     }, {
       onSuccess: (order) => {
         setLastOrder(order);
         setSelected({});
+        setCustomerName('');
+        setCustomerPhone('');
         void client.invalidateQueries({ queryKey: getListProductsQueryKey() });
         void client.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         void client.invalidateQueries({ queryKey: getListActivityQueryKey() });
@@ -410,14 +445,69 @@ function OrdersPage() {
         {productsQuery.isError ? <QueryError onRetry={() => void productsQuery.refetch()} /> : productsQuery.isLoading ? <div className="space-y-3">{Array.from({ length: 4 }).map((_, index) => <SkeletonBlock key={index} className="h-20" />)}</div> : filteredProducts.length === 0 ? <EmptyState icon={Boxes} title="Nenhum produto encontrado" description="Cadastre o produto no catálogo ou ajuste a busca." /> : <div className="space-y-2.5">{filteredProducts.map((product) => { const quantity = selected[product.id] ?? 0; const canAdd = orderType === 'in' || quantity < product.stock; return <div key={product.id} data-testid={`order-product-${product.id}`} className={`flex items-center gap-3 rounded-xl border p-3 transition ${quantity > 0 ? 'border-primary/40 bg-primary/5' : 'border-border/70 hover:border-primary/25'}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-extrabold ${product.accent === 'pink' ? 'bg-[#fbe8ef] text-[#c44b72]' : 'bg-[#fff0e4] text-[#d86a3b]'}`}>{product.brand.slice(0, 1).toUpperCase()}</span><div className="min-w-0 flex-1"><p className="truncate text-[13px] font-extrabold">{product.name}</p><p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{product.brand} · {product.sku} · estoque atual {number.format(product.stock)}</p><p className="mt-1 text-xs font-bold text-foreground">{currency.format(product.unitPrice)} <span className="font-normal text-muted-foreground">por unidade</span></p></div>{quantity > 0 ? <div className="flex items-center gap-2 rounded-lg bg-background p-1 shadow-sm"><button type="button" aria-label={`Remover uma unidade de ${product.name}`} onClick={() => changeQuantity(product.id, -1)} data-testid={`button-order-decrease-${product.id}`} className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"><span className="text-lg leading-none">−</span></button><span className="w-8 text-center font-mono text-xs font-bold tabular">{quantity}</span><button type="button" aria-label={`Adicionar uma unidade de ${product.name}`} onClick={() => changeQuantity(product.id, 1)} disabled={!canAdd} data-testid={`button-order-increase-${product.id}`} className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40"><Plus size={14} /></button></div> : <button type="button" onClick={() => changeQuantity(product.id, 1)} disabled={orderType === 'out' && product.stock === 0} data-testid={`button-order-add-${product.id}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-xs font-bold text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"><Plus size={14} /> {orderType === 'out' && product.stock === 0 ? 'Sem estoque' : 'Adicionar'}</button>}</div>; })}</div>}
       </section>
       <section className="h-fit rounded-2xl border border-border/80 bg-card p-5 shadow-[0_4px_22px_rgba(91,44,61,.035)] sm:p-6 xl:sticky xl:top-6">
-        <div className="mb-6 flex items-start justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">conferência</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Resumo do pedido</h2></div><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff0e4] text-[#d86a3b]"><ReceiptText size={17} /></div></div>
-        {selectedItems.length === 0 ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><ShoppingCart className="mx-auto mb-3 text-muted-foreground" size={24} /><p className="text-sm font-bold">{orderType === 'in' ? 'Sua entrada está vazia' : 'Sua saída está vazia'}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Selecione os produtos e as quantidades que deseja {orderType === 'in' ? 'receber' : 'retirar'}.</p></div> : <><div className="space-y-3">{selectedItems.map(({ product, quantity }) => <div key={product.id} className="flex items-start gap-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{product.name}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{quantity} un. × {currency.format(product.unitPrice)}</p></div><p className="font-mono text-xs font-bold tabular">{currency.format(product.unitPrice * quantity)}</p></div>)}</div><div className="mt-6 border-t border-border/70 pt-5"><div className="flex items-center justify-between text-xs text-muted-foreground"><span>Total de itens</span><span className="font-mono font-bold text-foreground">{number.format(totalItems)} un.</span></div><div className="mt-2 flex items-center justify-between"><span className="text-sm font-extrabold">Valor da {orderType === 'in' ? 'entrada' : 'saída'}</span><span className="font-mono text-xl font-extrabold tabular">{currency.format(totalValue)}</span></div><button type="button" onClick={finalizeOrder} disabled={createOrder.isPending} data-testid="button-finalize-order" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60">{createOrder.isPending && <Loader2 size={15} className="animate-spin" />}{createOrder.isPending ? 'Finalizando...' : `Finalizar ${orderType === 'in' ? 'entrada' : 'saída'} e atualizar estoque`}</button><p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground">Ao finalizar, o saldo será {orderType === 'in' ? 'somado' : 'subtraído'} e a movimentação ficará registrada no histórico.</p></div></>}{createOrder.isError && <p className="mt-4 rounded-xl bg-rose-50 p-3 text-xs font-bold text-destructive">Não foi possível finalizar. Para saídas, confira se a quantidade não ultrapassa o estoque disponível.</p>}</section>
+         <div className="mb-6 flex items-start justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">conferência</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Resumo do pedido</h2></div><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff0e4] text-[#d86a3b]"><ReceiptText size={17} /></div></div>
+         {orderType === 'out' && <div className="mb-5 rounded-xl border border-orange-200 bg-orange-50/55 p-4"><p className="mb-3 text-xs font-extrabold text-orange-900">Dados do cliente</p><div className="grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1.5 block text-[11px] font-bold text-orange-900/75">Nome</span><input value={customerName} onChange={(event) => { setCustomerName(event.target.value); setOrderError(''); }} data-testid="input-order-customer-name" placeholder="Nome do cliente" className="h-10 w-full rounded-lg border-0 bg-white px-3 text-xs outline-none ring-orange-300/40 placeholder:text-muted-foreground focus:ring-2" /></label><label className="block"><span className="mb-1.5 block text-[11px] font-bold text-orange-900/75">Telefone</span><input value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setOrderError(''); }} data-testid="input-order-customer-phone" placeholder="(00) 00000-0000" type="tel" className="h-10 w-full rounded-lg border-0 bg-white px-3 text-xs outline-none ring-orange-300/40 placeholder:text-muted-foreground focus:ring-2" /></label></div></div>}
+        {selectedItems.length === 0 ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><ShoppingCart className="mx-auto mb-3 text-muted-foreground" size={24} /><p className="text-sm font-bold">{orderType === 'in' ? 'Sua entrada está vazia' : 'Sua saída está vazia'}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Selecione os produtos e as quantidades que deseja {orderType === 'in' ? 'receber' : 'retirar'}.</p></div> : <><div className="space-y-3">{selectedItems.map(({ product, quantity }) => <div key={product.id} className="flex items-start gap-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{product.name}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{quantity} un. × {currency.format(product.unitPrice)}</p></div><p className="font-mono text-xs font-bold tabular">{currency.format(product.unitPrice * quantity)}</p></div>)}</div><div className="mt-6 border-t border-border/70 pt-5"><div className="flex items-center justify-between text-xs text-muted-foreground"><span>Total de itens</span><span className="font-mono font-bold text-foreground">{number.format(totalItems)} un.</span></div><div className="mt-2 flex items-center justify-between"><span className="text-sm font-extrabold">Valor da {orderType === 'in' ? 'entrada' : 'saída'}</span><span className="font-mono text-xl font-extrabold tabular">{currency.format(totalValue)}</span></div><button type="button" onClick={finalizeOrder} disabled={createOrder.isPending} data-testid="button-finalize-order" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60">{createOrder.isPending && <Loader2 size={15} className="animate-spin" />}{createOrder.isPending ? 'Finalizando...' : `Finalizar ${orderType === 'in' ? 'entrada' : 'saída'} e atualizar estoque`}</button><p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground">Ao finalizar, o saldo será {orderType === 'in' ? 'somado' : 'subtraído'} e a movimentação ficará registrada no histórico.</p></div></>}{(orderError || createOrder.isError) && <p className="mt-4 rounded-xl bg-rose-50 p-3 text-xs font-bold text-destructive">{orderError || 'Não foi possível finalizar. Para saídas, confira os dados do cliente e o estoque disponível.'}</p>}</section>
     </div>
     {lastOrder && <div className="mt-6"><OrderSummary order={lastOrder} featured /></div>}
     <section className="mt-7">
       <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">histórico</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Pedidos finalizados</h2></div><div className="flex items-center gap-3"><select value={orderFilter} onChange={(event) => setOrderFilter(event.target.value as 'all' | 'in' | 'out')} data-testid="select-order-filter" className="h-10 rounded-xl border border-border bg-card px-3 text-xs font-bold outline-none focus:ring-2 focus:ring-primary/20"><option value="all">Todas</option><option value="in">Entradas</option><option value="out">Saídas</option></select><span className="text-xs text-muted-foreground">{visibleOrders.length} {visibleOrders.length === 1 ? 'registrado' : 'registrados'}</span></div></div>
       {ordersQuery.isError ? <QueryError onRetry={() => void ordersQuery.refetch()} /> : ordersQuery.isLoading ? <div className="grid gap-4 lg:grid-cols-2"><SkeletonBlock className="h-72" /><SkeletonBlock className="h-72" /></div> : visibleOrders.length === 0 ? <EmptyState icon={ClipboardList} title="Nenhuma movimentação encontrada" description={orderFilter === 'all' ? 'Os pedidos concluídos aparecerão aqui com seus itens e valores.' : `Ainda não há ${orderFilter === 'in' ? 'entradas' : 'saídas'} finalizadas.`} /> : <div className="grid gap-4 lg:grid-cols-2">{visibleOrders.map((order) => <OrderSummary key={order.id} order={order} />)}</div>}
     </section>
+  </div>;
+}
+
+function CustomersPage() {
+  const ordersQuery = useListOrders();
+  const [search, setSearch] = useState('');
+  const orders = ordersQuery.data ?? [];
+  const customers = useMemo(() => {
+    const byKey = new Map<string, { name: string; phone: string; orders: number; items: number; value: number; lastOrder?: string }>();
+    for (const order of orders) {
+      if (order.type !== 'out' || !order.customerName) continue;
+      const phone = order.customerPhone ?? '';
+      const key = `${order.customerName.toLowerCase()}|${phone}`;
+      const current = byKey.get(key) ?? { name: order.customerName, phone, orders: 0, items: 0, value: 0, lastOrder: order.createdAt };
+      current.orders += 1;
+      current.items += order.totalItems;
+      current.value += order.totalValue;
+      if (!current.lastOrder || new Date(order.createdAt) > new Date(current.lastOrder)) current.lastOrder = order.createdAt;
+      byKey.set(key, current);
+    }
+    return Array.from(byKey.values()).sort((a, b) => new Date(b.lastOrder ?? 0).getTime() - new Date(a.lastOrder ?? 0).getTime());
+  }, [orders]);
+  const visibleCustomers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return customers;
+    return customers.filter((customer) => `${customer.name} ${customer.phone}`.toLowerCase().includes(query));
+  }, [customers, search]);
+
+  return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11">
+    <PageHeader eyebrow="relacionamento" title="Clientes" description="Veja os clientes registrados nas saídas e o valor movimentado em cada pedido." action={<Link href="/pedidos" data-testid="link-new-order-customers" className="inline-flex w-fit items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:brightness-105"><ShoppingCart size={16} /> Novo pedido</Link>} />
+    <div className="mb-5 rounded-2xl border border-border/80 bg-card p-3 shadow-[0_4px_22px_rgba(91,44,61,.035)]"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-search-customers" placeholder="Buscar por nome ou telefone..." className="h-11 w-full rounded-xl bg-muted/50 pl-10 pr-3 text-sm outline-none ring-primary/20 placeholder:text-muted-foreground/75 focus:ring-2" /></label></div>
+    {ordersQuery.isError ? <QueryError onRetry={() => void ordersQuery.refetch()} /> : ordersQuery.isLoading ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><SkeletonBlock className="h-48" /><SkeletonBlock className="h-48" /><SkeletonBlock className="h-48" /></div> : visibleCustomers.length === 0 ? <EmptyState icon={Users} title="Nenhum cliente encontrado" description={customers.length === 0 ? 'Clientes aparecem aqui quando uma saída é finalizada com nome e telefone.' : 'Tente mudar o nome ou telefone pesquisado.'} action={<Link href="/pedidos" data-testid="link-empty-customer-order" className="mt-4 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground">Registrar saída</Link>} /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visibleCustomers.map((customer) => <article key={`${customer.name}-${customer.phone}`} data-testid="customer-card" className="rounded-2xl border border-border/80 bg-card p-5 shadow-[0_4px_22px_rgba(91,44,61,.035)]"><div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#fbe8ef] text-sm font-extrabold text-[#c44b72]">{profileInitials(customer.name)}</div><div className="min-w-0"><h2 className="truncate text-sm font-extrabold">{customer.name}</h2><p className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Phone size={13} />{customer.phone || 'Telefone não informado'}</p></div></div><div className="mt-5 grid grid-cols-2 gap-2"><div className="rounded-xl bg-muted/55 p-3"><p className="text-[10px] font-bold text-muted-foreground">Pedidos</p><p className="mt-1 font-mono text-lg font-extrabold tabular">{customer.orders}</p></div><div className="rounded-xl bg-muted/55 p-3"><p className="text-[10px] font-bold text-muted-foreground">Itens retirados</p><p className="mt-1 font-mono text-lg font-extrabold tabular">{number.format(customer.items)}</p></div></div><div className="mt-4 flex items-end justify-between border-t border-border/70 pt-4"><div><p className="text-[10px] font-bold text-muted-foreground">Último pedido</p><p className="mt-1 text-xs font-semibold">{formatDate(customer.lastOrder)}</p></div><p className="font-mono text-sm font-extrabold tabular">{currency.format(customer.value)}</p></div></article>)}</div>}
+  </div>;
+}
+
+function MovementsPage() {
+  const ordersQuery = useListOrders();
+  const [month, setMonth] = useState(monthKey(new Date()));
+  const [search, setSearch] = useState('');
+  const orders = ordersQuery.data ?? [];
+  const visibleOrders = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return orders.filter((order) => {
+      const matchesMonth = !month || monthKey(order.createdAt) === month;
+      const searchable = `${order.customerName ?? ''} ${order.customerPhone ?? ''} ${order.items.map((item) => `${item.productName} ${item.sku}`).join(' ')}`.toLowerCase();
+      return matchesMonth && (!query || searchable.includes(query));
+    });
+  }, [month, orders, search]);
+
+  return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11">
+    <PageHeader eyebrow="histórico" title="Movimentações" description="Consulte as entradas e saídas por mês, cliente ou produto." action={<Link href="/pedidos" data-testid="link-new-order-movements" className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-extrabold text-foreground transition hover:bg-muted"><ShoppingCart size={16} /> Novo pedido</Link>} />
+    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-border/80 bg-card p-3 shadow-[0_4px_22px_rgba(91,44,61,.035)] sm:flex-row"><label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-search-movements" placeholder="Buscar cliente, produto ou SKU..." className="h-11 w-full rounded-xl bg-muted/50 pl-10 pr-3 text-sm outline-none ring-primary/20 placeholder:text-muted-foreground/75 focus:ring-2" /></label><label className="relative flex items-center gap-2 rounded-xl bg-muted/50 px-3"><CalendarDays className="text-muted-foreground" size={16} /><span className="sr-only">Filtrar mês</span><input type="month" value={month} onChange={(event) => setMonth(event.target.value)} data-testid="input-filter-movement-month" className="h-11 bg-transparent text-xs font-bold outline-none" /></label><button type="button" onClick={() => setMonth('')} data-testid="button-clear-movement-month" className="h-11 rounded-xl px-3 text-xs font-bold text-muted-foreground hover:bg-muted">Todos os meses</button></div>
+    <div className="mb-4 flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">entradas e saídas</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">{month ? monthLabel(month) : 'Todos os meses'}</h2></div><span className="text-xs text-muted-foreground">{visibleOrders.length} {visibleOrders.length === 1 ? 'movimentação' : 'movimentações'}</span></div>
+    {ordersQuery.isError ? <QueryError onRetry={() => void ordersQuery.refetch()} /> : ordersQuery.isLoading ? <div className="space-y-2 rounded-2xl border border-border/80 bg-card p-4"><SkeletonBlock className="h-16" /><SkeletonBlock className="h-16" /><SkeletonBlock className="h-16" /></div> : visibleOrders.length === 0 ? <EmptyState icon={ClipboardList} title="Nenhuma movimentação encontrada" description="Tente outro mês ou uma busca diferente." /> : <div className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_4px_22px_rgba(91,44,61,.035)]"><div className="divide-y divide-border/70">{visibleOrders.map((order) => { const isEntry = order.type === 'in'; return <article key={order.id} data-testid={`movement-row-${order.id}`} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isEntry ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>{isEntry ? <ArrowDownToLine size={17} /> : <ArrowUpFromLine size={17} />}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-extrabold">{isEntry ? 'Entrada de estoque' : order.customerName || 'Saída sem cliente'}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isEntry ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'}`}>{isEntry ? 'Entrada' : 'Saída'}</span></div><p className="mt-1 truncate text-xs text-muted-foreground">{order.items.map((item) => `${item.productName} (${item.quantity} un.)`).join(' · ')}</p>{!isEntry && order.customerPhone && <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><Phone size={12} />{order.customerPhone}</p>}</div><div className="flex items-center justify-between gap-5 sm:block sm:min-w-[130px] sm:text-right"><div><p className="text-[11px] font-semibold text-muted-foreground">{formatDate(order.createdAt)}</p><p className={`mt-1 font-mono text-sm font-extrabold tabular ${isEntry ? 'text-emerald-700' : 'text-orange-700'}`}>{currency.format(order.totalValue)}</p></div></div></article>; })}</div></div>}
   </div>;
 }
 
@@ -556,7 +646,7 @@ function ProfilePage() {
 }
 
 function AppRouter() {
-  return <Shell><Switch><Route path="/" component={Dashboard} /><Route path="/pedidos" component={OrdersPage} /><Route path="/perfil" component={ProfilePage} /><Route path="/produtos/novo" component={() => <ProductFormPage />} /><Route path="/produtos/:id/editar" component={() => { const params = useParams<{ id: string }>(); return <ProductFormPage editId={Number(params.id)} />; }} /><Route path="/produtos/:id" component={() => { const params = useParams<{ id: string }>(); return <ProductDetail id={Number(params.id)} />; }} /><Route path="/produtos" component={Catalog} /><Route component={NotFound} /></Switch></Shell>;
+  return <Shell><Switch><Route path="/" component={Dashboard} /><Route path="/pedidos" component={OrdersPage} /><Route path="/clientes" component={CustomersPage} /><Route path="/movimentacoes" component={MovementsPage} /><Route path="/perfil" component={ProfilePage} /><Route path="/produtos/novo" component={() => <ProductFormPage />} /><Route path="/produtos/:id/editar" component={() => { const params = useParams<{ id: string }>(); return <ProductFormPage editId={Number(params.id)} />; }} /><Route path="/produtos/:id" component={() => { const params = useParams<{ id: string }>(); return <ProductDetail id={Number(params.id)} />; }} /><Route path="/produtos" component={Catalog} /><Route component={NotFound} /></Switch></Shell>;
 }
 
 function App() {
