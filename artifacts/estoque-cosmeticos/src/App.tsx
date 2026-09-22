@@ -49,6 +49,7 @@ import {
   useUpdateProduct,
 } from '@workspace/api-client-react';
 import type { Order, Product, ProductAccent, ProductInput, ProductStatus, StockMovementInput } from '@workspace/api-client-react';
+import { jsPDF } from 'jspdf';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -148,35 +149,121 @@ function monthLabel(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
 }
 
-function escapeDocumentHtml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
-}
-
-function buildMovementDocument(orders: Order[], month: string) {
+function buildMovementPdf(orders: Order[], month: string) {
   const entries = orders.filter((order) => order.type === 'in');
   const exits = orders.filter((order) => order.type === 'out');
-  const reportMonth = escapeDocumentHtml(monthLabel(month));
-  const formatDocumentDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
-  const renderOrders = (items: Order[], type: 'in' | 'out') => {
-    if (items.length === 0) return '<p class="empty">Nenhuma movimentação neste período.</p>';
-    return items.map((order) => {
-      const productList = order.items.map((item) => `${escapeDocumentHtml(item.productName)} (${item.quantity} un. · ${currency.format(item.totalValue)})`).join('<br>');
-      const client = type === 'out'
-        ? `${escapeDocumentHtml(order.customerName || 'Cliente não informado')}${order.customerPhone ? `<br><span>${escapeDocumentHtml(order.customerPhone)}</span>` : ''}`
-        : '—';
-      return `<tr><td>${formatDocumentDate(order.createdAt)}</td><td>${client}</td><td>${productList}</td><td class="number">${number.format(order.totalItems)} un.</td><td class="number">${currency.format(order.totalValue)}</td></tr>`;
-    }).join('');
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+  const margin = 14;
+  const pageWidth = 210;
+  const pageBottom = 282;
+  const column = { date: 14, client: 45, products: 88, quantity: 164, value: 196 };
+  let y = 18;
+
+  const addPageHeader = () => {
+    pdf.setTextColor(199, 62, 112);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.text('NUVEM ESTOQUE', margin, y);
+    y += 7;
+    pdf.setTextColor(51, 37, 45);
+    pdf.setFontSize(20);
+    pdf.text('Relatório de movimentações', margin, y);
+    y += 6;
+    pdf.setTextColor(118, 106, 112);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.text(`Período: ${monthLabel(month)} · Gerado em ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date())}`, margin, y);
+    y += 6;
+    pdf.setDrawColor(216, 79, 131);
+    pdf.setLineWidth(0.7);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 10;
   };
-  const totalItems = (items: Order[]) => number.format(items.reduce((sum, order) => sum + order.totalItems, 0));
-  const totalValue = (items: Order[]) => currency.format(items.reduce((sum, order) => sum + order.totalValue, 0));
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Movimentações — ${reportMonth}</title><style>
-    @page{size:A4;margin:16mm}*{box-sizing:border-box}body{margin:0;color:#33252d;font-family:Arial,Helvetica,sans-serif;font-size:12px}header{border-bottom:2px solid #d84f83;padding-bottom:16px;margin-bottom:22px}h1{font-size:25px;margin:0 0 6px}h2{font-size:16px;margin:26px 0 9px;color:#33252d}.eyebrow{color:#c73e70;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 8px}.meta{color:#766a70;margin:0}.summary{display:flex;gap:12px;margin:18px 0}.summary div{border:1px solid #eadfe2;border-radius:8px;padding:10px 14px;min-width:150px}.summary strong{display:block;font-size:16px;margin-top:4px}.summary span{color:#766a70;font-size:10px}table{width:100%;border-collapse:collapse;border:1px solid #eadfe2;border-radius:8px;overflow:hidden}th{background:#f8f0f3;color:#766a70;font-size:10px;letter-spacing:.4px;text-align:left;text-transform:uppercase}th,td{padding:9px 10px;border-bottom:1px solid #eee6e8;vertical-align:top}tr:last-child td{border-bottom:0}.number{text-align:right;white-space:nowrap}td span{color:#766a70;font-size:10px}.empty{border:1px dashed #d9cdd1;color:#766a70;padding:18px;text-align:center;border-radius:8px}.footer{border-top:1px solid #eadfe2;color:#766a70;font-size:10px;margin-top:28px;padding-top:10px}@media print{h2{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid;break-after:auto}}
-  </style></head><body><header><p class="eyebrow">nuvem estoque</p><h1>Relatório de movimentações</h1><p class="meta">Período: ${reportMonth} · Gerado em ${formatDocumentDate(new Date().toISOString())}</p></header>
-    <div class="summary"><div><span>Entradas</span><strong>${entries.length}</strong><span>${totalItems(entries)} unidades · ${totalValue(entries)}</span></div><div><span>Saídas</span><strong>${exits.length}</strong><span>${totalItems(exits)} unidades · ${totalValue(exits)}</span></div></div>
-    <h2>Entradas de estoque</h2><table><thead><tr><th>Data</th><th>Cliente</th><th>Produtos</th><th class="number">Quantidade</th><th class="number">Valor</th></tr></thead><tbody>${renderOrders(entries, 'in')}</tbody></table>
-    <h2>Saídas de estoque</h2><table><thead><tr><th>Data</th><th>Cliente</th><th>Produtos</th><th class="number">Quantidade</th><th class="number">Valor</th></tr></thead><tbody>${renderOrders(exits, 'out')}</tbody></table>
-    <p class="footer">Documento gerado pelo Nuvem Estoque · Os valores refletem os pedidos finalizados no período selecionado.</p>
-  </body></html>`;
+
+  const addTableHeader = () => {
+    pdf.setFillColor(248, 240, 243);
+    pdf.rect(margin, y - 4, pageWidth - margin * 2, 8, 'F');
+    pdf.setTextColor(118, 106, 112);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.5);
+    pdf.text('DATA', column.date, y);
+    pdf.text('CLIENTE', column.client, y);
+    pdf.text('PRODUTOS', column.products, y);
+    pdf.text('QTD.', column.quantity, y, { align: 'right' });
+    pdf.text('VALOR', column.value, y, { align: 'right' });
+    y += 8;
+  };
+
+  const addSection = (title: string, items: Order[], color: [number, number, number]) => {
+    if (y > pageBottom - 35) {
+      pdf.addPage();
+      y = 18;
+      addPageHeader();
+    }
+    pdf.setTextColor(...color);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(13);
+    pdf.text(title, margin, y);
+    y += 5;
+    if (!items.length) {
+      pdf.setTextColor(118, 106, 112);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.text('Nenhuma movimentação neste período.', margin, y + 3);
+      y += 14;
+      return;
+    }
+    addTableHeader();
+    items.forEach((order, index) => {
+      const products = order.items.map((item) => `${item.productName} (${item.quantity} un.)`).join(' · ');
+      const productLines = pdf.splitTextToSize(products, 70) as string[];
+      const clientLines = pdf.splitTextToSize(order.customerName || '—', 38) as string[];
+      const rowHeight = Math.max(9, productLines.length * 4.2, clientLines.length * 4.2);
+      if (y + rowHeight > pageBottom) {
+        pdf.addPage();
+        y = 18;
+        addPageHeader();
+        pdf.setTextColor(...color);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(13);
+        pdf.text(`${title} (continuação)`, margin, y);
+        y += 5;
+        addTableHeader();
+      }
+      if (index % 2 === 0) {
+        pdf.setFillColor(253, 250, 251);
+        pdf.rect(margin, y - 4, pageWidth - margin * 2, rowHeight, 'F');
+      }
+      pdf.setTextColor(51, 37, 45);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.text(new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(order.createdAt)), column.date, y);
+      pdf.text(clientLines, column.client, y);
+      pdf.text(productLines, column.products, y);
+      pdf.text(`${number.format(order.totalItems)} un.`, column.quantity, y, { align: 'right' });
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(currency.format(order.totalValue), column.value, y, { align: 'right' });
+      y += rowHeight;
+      pdf.setDrawColor(234, 223, 226);
+      pdf.setLineWidth(0.2);
+      pdf.line(margin, y - 2, pageWidth - margin, y - 2);
+    });
+    y += 4;
+    pdf.setTextColor(118, 106, 112);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    pdf.text(`Total: ${number.format(items.reduce((sum, order) => sum + order.totalItems, 0))} unidades · ${currency.format(items.reduce((sum, order) => sum + order.totalValue, 0))}`, pageWidth - margin, y, { align: 'right' });
+    y += 12;
+  };
+
+  addPageHeader();
+  addSection('Entradas de estoque', entries, [36, 133, 91]);
+  addSection('Saídas de estoque', exits, [212, 106, 59]);
+  pdf.setTextColor(118, 106, 112);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.5);
+  pdf.text('Documento gerado pelo Nuvem Estoque · Valores referentes aos pedidos finalizados.', margin, pageBottom + 5);
+  pdf.save(`movimentacoes-${month || 'todos-os-meses'}.pdf`);
 }
 
 function statusLabel(status: ProductStatus) {
@@ -536,14 +623,7 @@ function MovementsPage() {
     });
   }, [month, orders, search]);
   const generateDocument = () => {
-    const documentContent = buildMovementDocument(reportOrders, month);
-    const blob = new Blob([documentContent], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `movimentacoes-${month || 'todos-os-meses'}.html`;
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    buildMovementPdf(reportOrders, month);
   };
 
   return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11">
