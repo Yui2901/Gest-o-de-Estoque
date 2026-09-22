@@ -13,6 +13,7 @@ import {
   CirclePlus,
   ClipboardList,
   CalendarDays,
+  FileDown,
   Home,
   LayoutGrid,
   Loader2,
@@ -145,6 +146,37 @@ function monthLabel(value: string) {
   if (!value) return 'Todos os meses';
   const [year, month] = value.split('-').map(Number);
   return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
+}
+
+function escapeDocumentHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
+}
+
+function buildMovementDocument(orders: Order[], month: string) {
+  const entries = orders.filter((order) => order.type === 'in');
+  const exits = orders.filter((order) => order.type === 'out');
+  const reportMonth = escapeDocumentHtml(monthLabel(month));
+  const formatDocumentDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
+  const renderOrders = (items: Order[], type: 'in' | 'out') => {
+    if (items.length === 0) return '<p class="empty">Nenhuma movimentação neste período.</p>';
+    return items.map((order) => {
+      const productList = order.items.map((item) => `${escapeDocumentHtml(item.productName)} (${item.quantity} un. · ${currency.format(item.totalValue)})`).join('<br>');
+      const client = type === 'out'
+        ? `${escapeDocumentHtml(order.customerName || 'Cliente não informado')}${order.customerPhone ? `<br><span>${escapeDocumentHtml(order.customerPhone)}</span>` : ''}`
+        : '—';
+      return `<tr><td>${formatDocumentDate(order.createdAt)}</td><td>${client}</td><td>${productList}</td><td class="number">${number.format(order.totalItems)} un.</td><td class="number">${currency.format(order.totalValue)}</td></tr>`;
+    }).join('');
+  };
+  const totalItems = (items: Order[]) => number.format(items.reduce((sum, order) => sum + order.totalItems, 0));
+  const totalValue = (items: Order[]) => currency.format(items.reduce((sum, order) => sum + order.totalValue, 0));
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Movimentações — ${reportMonth}</title><style>
+    @page{size:A4;margin:16mm}*{box-sizing:border-box}body{margin:0;color:#33252d;font-family:Arial,Helvetica,sans-serif;font-size:12px}header{border-bottom:2px solid #d84f83;padding-bottom:16px;margin-bottom:22px}h1{font-size:25px;margin:0 0 6px}h2{font-size:16px;margin:26px 0 9px;color:#33252d}.eyebrow{color:#c73e70;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 8px}.meta{color:#766a70;margin:0}.summary{display:flex;gap:12px;margin:18px 0}.summary div{border:1px solid #eadfe2;border-radius:8px;padding:10px 14px;min-width:150px}.summary strong{display:block;font-size:16px;margin-top:4px}.summary span{color:#766a70;font-size:10px}table{width:100%;border-collapse:collapse;border:1px solid #eadfe2;border-radius:8px;overflow:hidden}th{background:#f8f0f3;color:#766a70;font-size:10px;letter-spacing:.4px;text-align:left;text-transform:uppercase}th,td{padding:9px 10px;border-bottom:1px solid #eee6e8;vertical-align:top}tr:last-child td{border-bottom:0}.number{text-align:right;white-space:nowrap}td span{color:#766a70;font-size:10px}.empty{border:1px dashed #d9cdd1;color:#766a70;padding:18px;text-align:center;border-radius:8px}.footer{border-top:1px solid #eadfe2;color:#766a70;font-size:10px;margin-top:28px;padding-top:10px}@media print{h2{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid;break-after:auto}}
+  </style></head><body><header><p class="eyebrow">nuvem estoque</p><h1>Relatório de movimentações</h1><p class="meta">Período: ${reportMonth} · Gerado em ${formatDocumentDate(new Date().toISOString())}</p></header>
+    <div class="summary"><div><span>Entradas</span><strong>${entries.length}</strong><span>${totalItems(entries)} unidades · ${totalValue(entries)}</span></div><div><span>Saídas</span><strong>${exits.length}</strong><span>${totalItems(exits)} unidades · ${totalValue(exits)}</span></div></div>
+    <h2>Entradas de estoque</h2><table><thead><tr><th>Data</th><th>Cliente</th><th>Produtos</th><th class="number">Quantidade</th><th class="number">Valor</th></tr></thead><tbody>${renderOrders(entries, 'in')}</tbody></table>
+    <h2>Saídas de estoque</h2><table><thead><tr><th>Data</th><th>Cliente</th><th>Produtos</th><th class="number">Quantidade</th><th class="number">Valor</th></tr></thead><tbody>${renderOrders(exits, 'out')}</tbody></table>
+    <p class="footer">Documento gerado pelo Nuvem Estoque · Os valores refletem os pedidos finalizados no período selecionado.</p>
+  </body></html>`;
 }
 
 function statusLabel(status: ProductStatus) {
@@ -494,6 +526,7 @@ function MovementsPage() {
   const [month, setMonth] = useState(monthKey(new Date()));
   const [search, setSearch] = useState('');
   const orders = ordersQuery.data ?? [];
+  const reportOrders = useMemo(() => orders.filter((order) => !month || monthKey(order.createdAt) === month), [month, orders]);
   const visibleOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
     return orders.filter((order) => {
@@ -502,10 +535,20 @@ function MovementsPage() {
       return matchesMonth && (!query || searchable.includes(query));
     });
   }, [month, orders, search]);
+  const generateDocument = () => {
+    const documentContent = buildMovementDocument(reportOrders, month);
+    const blob = new Blob([documentContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `movimentacoes-${month || 'todos-os-meses'}.html`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11">
     <PageHeader eyebrow="histórico" title="Movimentações" description="Consulte as entradas e saídas por mês, cliente ou produto." action={<Link href="/pedidos" data-testid="link-new-order-movements" className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-extrabold text-foreground transition hover:bg-muted"><ShoppingCart size={16} /> Novo pedido</Link>} />
-    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-border/80 bg-card p-3 shadow-[0_4px_22px_rgba(91,44,61,.035)] sm:flex-row"><label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-search-movements" placeholder="Buscar cliente, produto ou SKU..." className="h-11 w-full rounded-xl bg-muted/50 pl-10 pr-3 text-sm outline-none ring-primary/20 placeholder:text-muted-foreground/75 focus:ring-2" /></label><label className="relative flex items-center gap-2 rounded-xl bg-muted/50 px-3"><CalendarDays className="text-muted-foreground" size={16} /><span className="sr-only">Filtrar mês</span><input type="month" value={month} onChange={(event) => setMonth(event.target.value)} data-testid="input-filter-movement-month" className="h-11 bg-transparent text-xs font-bold outline-none" /></label><button type="button" onClick={() => setMonth('')} data-testid="button-clear-movement-month" className="h-11 rounded-xl px-3 text-xs font-bold text-muted-foreground hover:bg-muted">Todos os meses</button></div>
+    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-border/80 bg-card p-3 shadow-[0_4px_22px_rgba(91,44,61,.035)] sm:flex-row"><label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} data-testid="input-search-movements" placeholder="Buscar cliente, produto ou SKU..." className="h-11 w-full rounded-xl bg-muted/50 pl-10 pr-3 text-sm outline-none ring-primary/20 placeholder:text-muted-foreground/75 focus:ring-2" /></label><label className="relative flex items-center gap-2 rounded-xl bg-muted/50 px-3"><CalendarDays className="text-muted-foreground" size={16} /><span className="sr-only">Filtrar mês</span><input type="month" value={month} onChange={(event) => setMonth(event.target.value)} data-testid="input-filter-movement-month" className="h-11 bg-transparent text-xs font-bold outline-none" /></label><button type="button" onClick={() => setMonth('')} data-testid="button-clear-movement-month" className="h-11 rounded-xl px-3 text-xs font-bold text-muted-foreground hover:bg-muted">Todos os meses</button><button type="button" onClick={generateDocument} disabled={ordersQuery.isLoading} data-testid="button-generate-movement-document" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-extrabold text-primary-foreground shadow-[0_6px_14px_rgba(194,74,112,.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"><FileDown size={15} /> Gerar documento</button></div>
     <div className="mb-4 flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">entradas e saídas</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">{month ? monthLabel(month) : 'Todos os meses'}</h2></div><span className="text-xs text-muted-foreground">{visibleOrders.length} {visibleOrders.length === 1 ? 'movimentação' : 'movimentações'}</span></div>
     {ordersQuery.isError ? <QueryError onRetry={() => void ordersQuery.refetch()} /> : ordersQuery.isLoading ? <div className="space-y-2 rounded-2xl border border-border/80 bg-card p-4"><SkeletonBlock className="h-16" /><SkeletonBlock className="h-16" /><SkeletonBlock className="h-16" /></div> : visibleOrders.length === 0 ? <EmptyState icon={ClipboardList} title="Nenhuma movimentação encontrada" description="Tente outro mês ou uma busca diferente." /> : <div className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_4px_22px_rgba(91,44,61,.035)]"><div className="divide-y divide-border/70">{visibleOrders.map((order) => { const isEntry = order.type === 'in'; return <article key={order.id} data-testid={`movement-row-${order.id}`} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isEntry ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>{isEntry ? <ArrowDownToLine size={17} /> : <ArrowUpFromLine size={17} />}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-extrabold">{isEntry ? 'Entrada de estoque' : order.customerName || 'Saída sem cliente'}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isEntry ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'}`}>{isEntry ? 'Entrada' : 'Saída'}</span></div><p className="mt-1 truncate text-xs text-muted-foreground">{order.items.map((item) => `${item.productName} (${item.quantity} un.)`).join(' · ')}</p>{!isEntry && order.customerPhone && <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><Phone size={12} />{order.customerPhone}</p>}</div><div className="flex items-center justify-between gap-5 sm:block sm:min-w-[130px] sm:text-right"><div><p className="text-[11px] font-semibold text-muted-foreground">{formatDate(order.createdAt)}</p><p className={`mt-1 font-mono text-sm font-extrabold tabular ${isEntry ? 'text-emerald-700' : 'text-orange-700'}`}>{currency.format(order.totalValue)}</p></div></div></article>; })}</div></div>}
   </div>;
