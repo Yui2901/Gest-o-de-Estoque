@@ -324,6 +324,116 @@ function buildMovementPdf(orders: Order[], month: string) {
   pdf.save(`movimentacoes-${month || 'todos-os-meses'}.pdf`);
 }
 
+function buildOrderPdf(order: Order) {
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+  const margin = 18;
+  const pageWidth = 210;
+  const pageBottom = 280;
+  let y = 20;
+
+  const addHeader = () => {
+    pdf.setTextColor(199, 62, 112);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.text('NUVEM ESTOQUE', margin, y);
+    y += 9;
+    pdf.setTextColor(51, 37, 45);
+    pdf.setFontSize(21);
+    pdf.text('Comprovante do pedido', margin, y);
+    y += 7;
+    pdf.setTextColor(118, 106, 112);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.text(`Pedido #${order.id} · ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(order.createdAt))}`, margin, y);
+    y += 7;
+    pdf.setDrawColor(216, 79, 131);
+    pdf.setLineWidth(0.7);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 12;
+  };
+
+  const addPageIfNeeded = (height: number) => {
+    if (y + height <= pageBottom) return;
+    pdf.addPage();
+    y = 20;
+    addHeader();
+  };
+
+  addHeader();
+  pdf.setTextColor(51, 37, 45);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(11);
+  pdf.text(order.type === 'out' ? 'Dados da compra' : 'Dados da entrada', margin, y);
+  y += 7;
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(10);
+  if (order.customerName) {
+    pdf.text(`Cliente: ${order.customerName}`, margin, y);
+    y += 5;
+  }
+  if (order.customerPhone) {
+    pdf.text(`Telefone: ${order.customerPhone}`, margin, y);
+    y += 5;
+  }
+  if (order.type === 'out') {
+    pdf.text(`Pagamento: ${paymentLabel(order.paymentMethod)}${(order.installments || 1) > 1 ? ` · ${order.installments}x de ${currency.format(order.totalValue / (order.installments || 1))}` : ''}`, margin, y);
+    y += 5;
+  }
+  y += 7;
+
+  pdf.setFillColor(248, 240, 243);
+  pdf.rect(margin, y - 4, pageWidth - margin * 2, 8, 'F');
+  pdf.setTextColor(118, 106, 112);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(8);
+  pdf.text('ITEM', margin, y);
+  pdf.text('QTD.', 139, y, { align: 'right' });
+  pdf.text('UNITÁRIO', 165, y, { align: 'right' });
+  pdf.text('TOTAL', pageWidth - margin, y, { align: 'right' });
+  y += 9;
+
+  order.items.forEach((item, index) => {
+    const productLines = pdf.splitTextToSize(item.productName, 95) as string[];
+    const rowHeight = Math.max(9, productLines.length * 4.5);
+    addPageIfNeeded(rowHeight + 2);
+    if (index % 2 === 0) {
+      pdf.setFillColor(253, 250, 251);
+      pdf.rect(margin, y - 4, pageWidth - margin * 2, rowHeight, 'F');
+    }
+    pdf.setTextColor(51, 37, 45);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.text(productLines, margin, y);
+    pdf.text(number.format(item.quantity), 139, y, { align: 'right' });
+    pdf.text(currency.format(item.unitPrice), 165, y, { align: 'right' });
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(currency.format(item.totalValue), pageWidth - margin, y, { align: 'right' });
+    y += rowHeight;
+    pdf.setDrawColor(234, 223, 226);
+    pdf.setLineWidth(0.2);
+    pdf.line(margin, y - 2, pageWidth - margin, y - 2);
+  });
+
+  addPageIfNeeded(38);
+  y += 8;
+  pdf.setDrawColor(216, 79, 131);
+  pdf.setLineWidth(0.5);
+  pdf.line(105, y - 3, pageWidth - margin, y - 3);
+  pdf.setTextColor(118, 106, 112);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(9);
+  pdf.text(`Total de itens: ${number.format(order.totalItems)} unidades`, 105, y + 4);
+  pdf.setTextColor(51, 37, 45);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(14);
+  pdf.text(`Total: ${currency.format(order.totalValue)}`, pageWidth - margin, y + 12, { align: 'right' });
+  pdf.setTextColor(118, 106, 112);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.5);
+  pdf.text('Documento gerado pelo Nuvem Estoque.', margin, pageBottom + 5);
+  pdf.save(`pedido-${order.id}.pdf`);
+}
+
 function statusLabel(status: ProductStatus) {
   return status === 'normal' ? 'Em dia' : status === 'low' ? 'Estoque baixo' : 'Esgotado';
 }
@@ -518,7 +628,10 @@ function OrderSummary({ order, featured = false }: { order: Order; featured?: bo
         <h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Pedido #{order.id}</h2>
         <p className="mt-1 text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
       </div>
-      <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${isEntry ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>{isEntry ? 'Entrada registrada' : 'Saída registrada'}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => buildOrderPdf(order)} data-testid={`button-download-order-pdf-${order.id}`} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[11px] font-bold text-foreground transition hover:bg-muted"><FileDown size={14} /> Baixar PDF</button>
+        <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${isEntry ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>{isEntry ? 'Entrada registrada' : 'Saída registrada'}</span>
+      </div>
     </div>
     {!isEntry && <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-orange-50/70 px-4 py-3 text-xs"><span className="font-bold text-orange-900">{order.customerName || 'Cliente não informado'}</span>{order.customerPhone && <span className="inline-flex items-center gap-1.5 text-orange-800/75"><Phone size={13} />{order.customerPhone}</span>}</div>}
     <div className="mt-5 grid gap-3 sm:grid-cols-2">
