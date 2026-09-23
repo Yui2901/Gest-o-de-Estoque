@@ -66,6 +66,10 @@ router.post("/orders", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Customer name and phone are required for stock exits" });
     return;
   }
+  if (parsed.data.type === "out" && parsed.data.installments && parsed.data.installments > 1 && parsed.data.paymentMethod !== "credit_card") {
+    res.status(400).json({ error: "Installments are only available for credit card payments" });
+    return;
+  }
 
   try {
     const order = await db.transaction(async (tx) => {
@@ -101,6 +105,8 @@ router.post("/orders", async (req, res): Promise<void> => {
           status: "finalized",
           customerName: parsed.data.customerName?.trim() || null,
           customerPhone: parsed.data.customerPhone?.trim() || null,
+          paymentMethod: parsed.data.type === "out" ? parsed.data.paymentMethod ?? "pix" : null,
+          installments: parsed.data.type === "out" ? parsed.data.installments ?? 1 : 1,
           totalItems,
           totalValue,
         })

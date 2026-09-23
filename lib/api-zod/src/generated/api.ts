@@ -201,6 +201,8 @@ export const ListOrdersResponseItem = zod.object({
   "status": zod.enum(['finalized']),
   "customerName": zod.string().nullable(),
   "customerPhone": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.literal('pix'),zod.literal('cash'),zod.literal('debit_card'),zod.literal('credit_card'),zod.literal('transfer'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "installments": zod.number(),
   "totalItems": zod.number(),
   "totalValue": zod.number(),
   "items": zod.array(zod.object({
@@ -222,6 +224,8 @@ export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
  */
 
 
+export const createOrderBodyInstallmentsMax = 12;
+
 
 
 
@@ -230,6 +234,8 @@ export const CreateOrderBody = zod.object({
   "type": zod.enum(['in', 'out']),
   "customerName": zod.string().min(1).optional(),
   "customerPhone": zod.string().min(1).optional(),
+  "paymentMethod": zod.enum(['pix', 'cash', 'debit_card', 'credit_card', 'transfer', 'other']).optional(),
+  "installments": zod.number().min(1).max(createOrderBodyInstallmentsMax).optional(),
   "items": zod.array(zod.object({
   "productId": zod.number(),
   "quantity": zod.number().min(1)
@@ -242,6 +248,8 @@ export const CreateOrderResponse = zod.object({
   "status": zod.enum(['finalized']),
   "customerName": zod.string().nullable(),
   "customerPhone": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.literal('pix'),zod.literal('cash'),zod.literal('debit_card'),zod.literal('credit_card'),zod.literal('transfer'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "installments": zod.number(),
   "totalItems": zod.number(),
   "totalValue": zod.number(),
   "items": zod.array(zod.object({

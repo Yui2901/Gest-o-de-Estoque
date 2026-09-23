@@ -297,6 +297,10 @@ components:
           enum: [in, out]
         customerName: { type: string, minLength: 1 }
         customerPhone: { type: string, minLength: 1 }
+        paymentMethod:
+          type: string
+          enum: [pix, cash, debit_card, credit_card, transfer, other]
+        installments: { type: number, format: int32, minimum: 1, maximum: 12 }
         items:
           type: array
           minItems: 1
@@ -315,7 +319,7 @@ components:
         totalValue: { type: number }
     Order:
       type: object
-      required: [id, type, status, customerName, customerPhone, totalItems, totalValue, items, createdAt]
+      required: [id, type, status, customerName, customerPhone, paymentMethod, installments, totalItems, totalValue, items, createdAt]
       properties:
         id: { type: number, format: int32 }
         type:
@@ -326,6 +330,8 @@ components:
           enum: [finalized]
         customerName: { type: ["string", "null"] }
         customerPhone: { type: ["string", "null"] }
+        paymentMethod: { type: ["string", "null"], enum: [pix, cash, debit_card, credit_card, transfer, other, null] }
+        installments: { type: number, format: int32 }
         totalItems: { type: number, format: int64 }
         totalValue: { type: number }
         items:

@@ -8,6 +8,8 @@ export const ordersTable = pgTable("orders", {
   status: text("status").notNull().default("finalized"),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
+  paymentMethod: text("payment_method"),
+  installments: integer("installments").notNull().default(1),
   totalItems: bigint("total_items", { mode: "number" }).notNull().default(0),
   totalValue: real("total_value").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

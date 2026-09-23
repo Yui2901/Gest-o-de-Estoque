@@ -145,12 +145,30 @@ export const OrderInputType = {
   out: 'out',
 } as const;
 
+export type OrderInputPaymentMethod = typeof OrderInputPaymentMethod[keyof typeof OrderInputPaymentMethod];
+
+
+export const OrderInputPaymentMethod = {
+  pix: 'pix',
+  cash: 'cash',
+  debit_card: 'debit_card',
+  credit_card: 'credit_card',
+  transfer: 'transfer',
+  other: 'other',
+} as const;
+
 export interface OrderInput {
   type: OrderInputType;
   /** @minLength 1 */
   customerName?: string;
   /** @minLength 1 */
   customerPhone?: string;
+  paymentMethod?: OrderInputPaymentMethod;
+  /**
+     * @minimum 1
+     * @maximum 12
+     */
+  installments?: number;
   /** @minItems 1 */
   items: OrderItemInput[];
 }
@@ -180,6 +198,21 @@ export const OrderStatus = {
   finalized: 'finalized',
 } as const;
 
+/**
+ * @nullable
+ */
+export type OrderPaymentMethod = typeof OrderPaymentMethod[keyof typeof OrderPaymentMethod] | null;
+
+
+export const OrderPaymentMethod = {
+  pix: 'pix',
+  cash: 'cash',
+  debit_card: 'debit_card',
+  credit_card: 'credit_card',
+  transfer: 'transfer',
+  other: 'other',
+} as const;
+
 export interface Order {
   id: number;
   type: OrderType;
@@ -188,6 +221,9 @@ export interface Order {
   customerName: string | null;
   /** @nullable */
   customerPhone: string | null;
+  /** @nullable */
+  paymentMethod: OrderPaymentMethod;
+  installments: number;
   totalItems: number;
   totalValue: number;
   items: OrderItem[];

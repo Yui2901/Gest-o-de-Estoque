@@ -18,6 +18,7 @@ import {
   LayoutGrid,
   Loader2,
   Menu,
+  MessageCircle,
   PackagePlus,
   Pencil,
   Plus,
@@ -67,6 +68,63 @@ type SellerProfile = {
   phone: string;
   store: string;
 };
+
+type PaymentMethod = 'pix' | 'cash' | 'debit_card' | 'credit_card' | 'transfer' | 'other';
+
+const paymentMethodLabels: Record<PaymentMethod, string> = {
+  pix: 'Pix',
+  cash: 'Dinheiro',
+  debit_card: 'Cartão de débito',
+  credit_card: 'Cartão de crédito',
+  transfer: 'Transferência',
+  other: 'Outro',
+};
+
+function paymentLabel(value: string | null | undefined) {
+  return value && value in paymentMethodLabels
+    ? paymentMethodLabels[value as PaymentMethod]
+    : 'Não informado';
+}
+
+function whatsappPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.startsWith('55') ? digits : `55${digits}`;
+}
+
+function buildWhatsAppReceipt(order: Order) {
+  const installmentCount = order.installments || 1;
+  const installmentValue = order.totalValue / installmentCount;
+  const payment = installmentCount > 1
+    ? `${paymentLabel(order.paymentMethod)} em ${installmentCount}x de ${currency.format(installmentValue)}`
+    : paymentLabel(order.paymentMethod);
+  const itemLines = order.items
+    .map((item) => `• ${item.productName} — ${item.quantity} un. x ${currency.format(item.unitPrice)} = ${currency.format(item.totalValue)}`)
+    .join('\n');
+  return [
+    `Olá, ${order.customerName || 'cliente'}!`,
+    '',
+    'Comprovante da compra',
+    'Nuvem Cosméticos',
+    `Pedido #${order.id}`,
+    `Data: ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(order.createdAt))}`,
+    '',
+    'Itens:',
+    itemLines,
+    '',
+    `Total pago: ${currency.format(order.totalValue)}`,
+    `Pagamento: ${payment}`,
+    '',
+    'Obrigado pela sua compra!',
+  ].join('\n');
+}
+
+function openWhatsAppReceipt(order: Order) {
+  const phone = whatsappPhone(order.customerPhone || '');
+  if (!phone) return;
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsAppReceipt(order))}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
 
 const PROFILE_STORAGE_KEY = 'seller-profile';
 
@@ -452,6 +510,7 @@ function Catalog() {
 
 function OrderSummary({ order, featured = false }: { order: Order; featured?: boolean }) {
   const isEntry = order.type === 'in';
+  const canSendWhatsApp = !isEntry && Boolean(order.customerPhone);
   return <section className={`rounded-2xl border p-6 ${featured ? 'border-emerald-200 bg-emerald-50/60' : 'border-border/80 bg-card shadow-[0_4px_22px_rgba(91,44,61,.035)]'}`}>
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
       <div>
@@ -466,10 +525,12 @@ function OrderSummary({ order, featured = false }: { order: Order; featured?: bo
       <div className="rounded-xl bg-background/80 p-4"><p className="text-[11px] font-bold text-muted-foreground">Itens pedidos</p><p className="mt-1 text-2xl font-extrabold tabular">{number.format(order.totalItems)} <span className="text-xs font-medium text-muted-foreground">un.</span></p></div>
       <div className="rounded-xl bg-background/80 p-4"><p className="text-[11px] font-bold text-muted-foreground">Valor do pedido</p><p className="mt-1 text-2xl font-extrabold tabular">{currency.format(order.totalValue)}</p></div>
     </div>
+    {!isEntry && <div className="mt-3 rounded-xl bg-background/80 p-4 text-xs"><p className="font-bold text-muted-foreground">Pagamento</p><p className="mt-1 font-semibold">{paymentLabel(order.paymentMethod)}{(order.installments || 1) > 1 ? ` · ${order.installments}x de ${currency.format(order.totalValue / (order.installments || 1))}` : ''}</p></div>}
     <div className="mt-5 border-t border-border/60 pt-4">
       <p className="mb-3 font-mono text-[10px] uppercase tracking-[.16em] text-muted-foreground">{isEntry ? 'Itens recebidos' : 'Itens retirados'}</p>
       <div className="space-y-2.5">{order.items.map((item) => <div key={item.id} className="flex items-center gap-3 text-sm"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted font-mono text-[10px] font-bold">{item.quantity}</span><span className="min-w-0 flex-1"><span className="block truncate font-bold">{item.productName}</span><span className="block font-mono text-[10px] text-muted-foreground">{item.sku} · {currency.format(item.unitPrice)} cada</span></span><span className="font-mono text-xs font-bold tabular">{currency.format(item.totalValue)}</span></div>)}</div>
     </div>
+    {featured && !isEntry && <div className="mt-5 flex flex-col gap-2 border-t border-emerald-200/70 pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-emerald-800/75">{canSendWhatsApp ? 'O comprovante será aberto no WhatsApp para você revisar e enviar.' : 'Cadastre um telefone para enviar o comprovante pelo WhatsApp.'}</p>{canSendWhatsApp && <button type="button" onClick={() => openWhatsAppReceipt(order)} data-testid="button-send-whatsapp-receipt" className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-extrabold text-white transition hover:brightness-95"><MessageCircle size={15} /> Enviar comprovante no WhatsApp</button>}</div>}
   </section>;
 }
 
@@ -483,6 +544,8 @@ function OrdersPage() {
   const [orderFilter, setOrderFilter] = useState<'all' | 'in' | 'out'>('all');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
+  const [installments, setInstallments] = useState(1);
   const [orderError, setOrderError] = useState('');
   const [selected, setSelected] = useState<Record<number, number>>({});
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
@@ -522,6 +585,8 @@ function OrdersPage() {
     setSelected({});
     setCustomerName('');
     setCustomerPhone('');
+    setPaymentMethod('pix');
+    setInstallments(1);
     setOrderError('');
     createOrder.reset();
   };
@@ -538,6 +603,8 @@ function OrdersPage() {
         type: orderType,
         customerName: orderType === 'out' ? customerName.trim() : undefined,
         customerPhone: orderType === 'out' ? customerPhone.trim() : undefined,
+        paymentMethod: orderType === 'out' ? paymentMethod : undefined,
+        installments: orderType === 'out' ? installments : undefined,
         items: selectedItems.map(({ product, quantity }) => ({ productId: product.id, quantity })),
       },
     }, {
@@ -546,6 +613,8 @@ function OrdersPage() {
         setSelected({});
         setCustomerName('');
         setCustomerPhone('');
+        setPaymentMethod('pix');
+        setInstallments(1);
         void client.invalidateQueries({ queryKey: getListProductsQueryKey() });
         void client.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         void client.invalidateQueries({ queryKey: getListActivityQueryKey() });
@@ -565,7 +634,7 @@ function OrdersPage() {
       </section>
       <section className="h-fit rounded-2xl border border-border/80 bg-card p-5 shadow-[0_4px_22px_rgba(91,44,61,.035)] sm:p-6 xl:sticky xl:top-6">
          <div className="mb-6 flex items-start justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">conferência</p><h2 className="mt-1 text-lg font-extrabold tracking-[-.03em]">Resumo do pedido</h2></div><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff0e4] text-[#d86a3b]"><ReceiptText size={17} /></div></div>
-         {orderType === 'out' && <div className="mb-5 rounded-xl border border-orange-200 bg-orange-50/55 p-4"><p className="mb-3 text-xs font-extrabold text-orange-900">Dados do cliente</p><div className="grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1.5 block text-[11px] font-bold text-orange-900/75">Nome</span><input value={customerName} onChange={(event) => { setCustomerName(event.target.value); setOrderError(''); }} data-testid="input-order-customer-name" placeholder="Nome do cliente" className="h-10 w-full rounded-lg border-0 bg-white px-3 text-xs outline-none ring-orange-300/40 placeholder:text-muted-foreground focus:ring-2" /></label><label className="block"><span className="mb-1.5 block text-[11px] font-bold text-orange-900/75">Telefone</span><input value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setOrderError(''); }} data-testid="input-order-customer-phone" placeholder="(00) 00000-0000" type="tel" className="h-10 w-full rounded-lg border-0 bg-white px-3 text-xs outline-none ring-orange-300/40 placeholder:text-muted-foreground focus:ring-2" /></label></div></div>}
+         {orderType === 'out' && <div className="mb-5 rounded-xl border border-orange-200 bg-orange-50/55 p-4"><p className="mb-3 text-xs font-extrabold text-orange-900">Dados do cliente</p><div className="grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1.5 block text-[11px] font-bold text-orange-900/75">Nome</span><input value={customerName} onChange={(event) => { setCustomerName(event.target.value); setOrderError(''); }} data-testid="input-order-customer-name" placeholder="Nome do cliente" className="h-10 w-full rounded-lg border-0 bg-white px-3 text-xs outline-none ring-orange-300/40 placeholder:text-muted-foreground focus:ring-2" /></label><label className="block"><span className="mb-1.5 block text-[11px] font-bold text-orange-900/75">Telefone</span><input value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setOrderError(''); }} data-testid="input-order-customer-phone" placeholder="(00) 00000-0000" type="tel" className="h-10 w-full rounded-lg border-0 bg-white px-3 text-xs outline-none ring-orange-300/40 placeholder:text-muted-foreground focus:ring-2" /></label></div><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1.5 block text-[11px] font-bold text-orange-900/75">Forma de pagamento</span><select value={paymentMethod} onChange={(event) => { const method = event.target.value as PaymentMethod; setPaymentMethod(method); if (method !== 'credit_card') setInstallments(1); setOrderError(''); }} data-testid="select-order-payment-method" className="h-10 w-full rounded-lg border-0 bg-white px-3 text-xs font-semibold outline-none ring-orange-300/40 focus:ring-2">{Object.entries(paymentMethodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>{paymentMethod === 'credit_card' && <label className="block"><span className="mb-1.5 block text-[11px] font-bold text-orange-900/75">Parcelas</span><select value={installments} onChange={(event) => setInstallments(Number(event.target.value))} data-testid="select-order-installments" className="h-10 w-full rounded-lg border-0 bg-white px-3 text-xs font-semibold outline-none ring-orange-300/40 focus:ring-2">{Array.from({ length: 12 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}x {currency.format(totalValue / value)}</option>)}</select></label>}</div></div>}
         {selectedItems.length === 0 ? <div className="rounded-xl border border-dashed border-border p-6 text-center"><ShoppingCart className="mx-auto mb-3 text-muted-foreground" size={24} /><p className="text-sm font-bold">{orderType === 'in' ? 'Sua entrada está vazia' : 'Sua saída está vazia'}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Selecione os produtos e as quantidades que deseja {orderType === 'in' ? 'receber' : 'retirar'}.</p></div> : <><div className="space-y-3">{selectedItems.map(({ product, quantity }) => <div key={product.id} className="flex items-start gap-3"><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{product.name}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{quantity} un. × {currency.format(product.unitPrice)}</p></div><p className="font-mono text-xs font-bold tabular">{currency.format(product.unitPrice * quantity)}</p></div>)}</div><div className="mt-6 border-t border-border/70 pt-5"><div className="flex items-center justify-between text-xs text-muted-foreground"><span>Total de itens</span><span className="font-mono font-bold text-foreground">{number.format(totalItems)} un.</span></div><div className="mt-2 flex items-center justify-between"><span className="text-sm font-extrabold">Valor da {orderType === 'in' ? 'entrada' : 'saída'}</span><span className="font-mono text-xl font-extrabold tabular">{currency.format(totalValue)}</span></div><button type="button" onClick={finalizeOrder} disabled={createOrder.isPending} data-testid="button-finalize-order" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60">{createOrder.isPending && <Loader2 size={15} className="animate-spin" />}{createOrder.isPending ? 'Finalizando...' : `Finalizar ${orderType === 'in' ? 'entrada' : 'saída'} e atualizar estoque`}</button><p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground">Ao finalizar, o saldo será {orderType === 'in' ? 'somado' : 'subtraído'} e a movimentação ficará registrada no histórico.</p></div></>}{(orderError || createOrder.isError) && <p className="mt-4 rounded-xl bg-rose-50 p-3 text-xs font-bold text-destructive">{orderError || 'Não foi possível finalizar. Para saídas, confira os dados do cliente e o estoque disponível.'}</p>}</section>
     </div>
     {lastOrder && <div className="mt-6"><OrderSummary order={lastOrder} featured /></div>}

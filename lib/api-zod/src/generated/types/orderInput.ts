@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { OrderInputPaymentMethod } from './orderInputPaymentMethod';
 import type { OrderInputType } from './orderInputType';
 import type { OrderItemInput } from './orderItemInput';
 
@@ -14,6 +15,12 @@ export interface OrderInput {
   customerName?: string;
   /** @minLength 1 */
   customerPhone?: string;
+  paymentMethod?: OrderInputPaymentMethod;
+  /**
+     * @minimum 1
+     * @maximum 12
+     */
+  installments?: number;
   /** @minItems 1 */
   items: OrderItemInput[];
 }
