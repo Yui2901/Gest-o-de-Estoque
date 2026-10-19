@@ -23,4 +23,7 @@ export interface ProductInput {
   stock: bigint;
   /** @minimum 0 */
   minStock: bigint;
+  /** @minimum 0 */
+  maxStock?: bigint;
+  locationId?: number;
 }

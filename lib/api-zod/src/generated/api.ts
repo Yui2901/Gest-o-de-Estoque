@@ -36,6 +36,7 @@ export const ListProductsResponseItem = zod.object({
   "unitPrice": zod.number(),
   "stock": zod.number(),
   "minStock": zod.number(),
+  "maxStock": zod.number(),
   "status": zod.enum(['normal', 'low', 'out']),
   "updatedAt": zod.coerce.date()
 })
@@ -55,6 +56,8 @@ export const createProductBodyStockMin = 0;
 
 export const createProductBodyMinStockMin = 0;
 
+export const createProductBodyMaxStockMin = 0;
+
 
 
 export const CreateProductBody = zod.object({
@@ -65,7 +68,9 @@ export const CreateProductBody = zod.object({
   "accent": zod.enum(['pink', 'orange']),
   "unitPrice": zod.number().min(createProductBodyUnitPriceMin),
   "stock": zod.number().min(createProductBodyStockMin),
-  "minStock": zod.number().min(createProductBodyMinStockMin)
+  "minStock": zod.number().min(createProductBodyMinStockMin),
+  "maxStock": zod.number().min(createProductBodyMaxStockMin).optional(),
+  "locationId": zod.number().optional()
 })
 
 export const CreateProductResponse = zod.object({
@@ -78,6 +83,7 @@ export const CreateProductResponse = zod.object({
   "unitPrice": zod.number(),
   "stock": zod.number(),
   "minStock": zod.number(),
+  "maxStock": zod.number(),
   "status": zod.enum(['normal', 'low', 'out']),
   "updatedAt": zod.coerce.date()
 })
@@ -98,6 +104,8 @@ export const updateProductBodyUnitPriceMin = 0;
 
 export const updateProductBodyMinStockMin = 0;
 
+export const updateProductBodyMaxStockMin = 0;
+
 
 
 export const UpdateProductBody = zod.object({
@@ -107,7 +115,8 @@ export const UpdateProductBody = zod.object({
   "brand": zod.string().min(1).optional(),
   "accent": zod.enum(['pink', 'orange']).optional(),
   "unitPrice": zod.number().min(updateProductBodyUnitPriceMin).optional(),
-  "minStock": zod.number().min(updateProductBodyMinStockMin).optional()
+  "minStock": zod.number().min(updateProductBodyMinStockMin).optional(),
+  "maxStock": zod.number().min(updateProductBodyMaxStockMin).optional()
 })
 
 export const UpdateProductResponse = zod.object({
@@ -120,6 +129,7 @@ export const UpdateProductResponse = zod.object({
   "unitPrice": zod.number(),
   "stock": zod.number(),
   "minStock": zod.number(),
+  "maxStock": zod.number(),
   "status": zod.enum(['normal', 'low', 'out']),
   "updatedAt": zod.coerce.date()
 })
@@ -142,12 +152,10 @@ export const CreateStockMovementParams = zod.object({
   "id": zod.coerce.number()
 })
 
-
-
-
 export const CreateStockMovementBody = zod.object({
-  "type": zod.enum(['in', 'out']),
-  "quantity": zod.number().min(1),
+  "type": zod.enum(['in', 'out', 'adjustment']),
+  "quantity": zod.number(),
+  "locationId": zod.number().optional(),
   "note": zod.string().optional()
 })
 
@@ -161,6 +169,7 @@ export const CreateStockMovementResponse = zod.object({
   "unitPrice": zod.number(),
   "stock": zod.number(),
   "minStock": zod.number(),
+  "maxStock": zod.number(),
   "status": zod.enum(['normal', 'low', 'out']),
   "updatedAt": zod.coerce.date()
 })
@@ -184,9 +193,11 @@ export const GetDashboardSummaryResponse = zod.object({
 export const ListActivityResponseItem = zod.object({
   "id": zod.number(),
   "productName": zod.string(),
-  "type": zod.enum(['in', 'out']),
+  "type": zod.enum(['in', 'out', 'adjustment']),
   "quantity": zod.number(),
   "note": zod.string().nullish(),
+  "warehouseName": zod.string().nullish(),
+  "locationName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const ListActivityResponse = zod.array(ListActivityResponseItem)
@@ -201,6 +212,11 @@ export const ListOrdersResponseItem = zod.object({
   "status": zod.enum(['finalized']),
   "customerName": zod.string().nullable(),
   "customerPhone": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "supplierId": zod.number().nullable(),
+  "supplierName": zod.string().nullable(),
+  "locationId": zod.number().nullable(),
+  "locationName": zod.string().nullable(),
   "paymentMethod": zod.union([zod.literal('pix'),zod.literal('cash'),zod.literal('debit_card'),zod.literal('credit_card'),zod.literal('transfer'),zod.literal('other'),zod.literal(null)]).nullable(),
   "installments": zod.number(),
   "totalItems": zod.number(),
@@ -227,6 +243,8 @@ export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
 export const createOrderBodyInstallmentsMax = 12;
 
 
+export const createOrderBodyItemsItemUnitPriceMin = 0;
+
 
 
 
@@ -234,11 +252,15 @@ export const CreateOrderBody = zod.object({
   "type": zod.enum(['in', 'out']),
   "customerName": zod.string().min(1).optional(),
   "customerPhone": zod.string().min(1).optional(),
+  "customerId": zod.number().optional(),
+  "supplierId": zod.number().optional(),
+  "locationId": zod.number().optional(),
   "paymentMethod": zod.enum(['pix', 'cash', 'debit_card', 'credit_card', 'transfer', 'other']).optional(),
   "installments": zod.number().min(1).max(createOrderBodyInstallmentsMax).optional(),
   "items": zod.array(zod.object({
   "productId": zod.number(),
-  "quantity": zod.number().min(1)
+  "quantity": zod.number().min(1),
+  "unitPrice": zod.number().min(createOrderBodyItemsItemUnitPriceMin).optional()
 })).min(1)
 })
 
@@ -248,6 +270,11 @@ export const CreateOrderResponse = zod.object({
   "status": zod.enum(['finalized']),
   "customerName": zod.string().nullable(),
   "customerPhone": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "supplierId": zod.number().nullable(),
+  "supplierName": zod.string().nullable(),
+  "locationId": zod.number().nullable(),
+  "locationName": zod.string().nullable(),
   "paymentMethod": zod.union([zod.literal('pix'),zod.literal('cash'),zod.literal('debit_card'),zod.literal('credit_card'),zod.literal('transfer'),zod.literal('other'),zod.literal(null)]).nullable(),
   "installments": zod.number(),
   "totalItems": zod.number(),
@@ -262,6 +289,500 @@ export const CreateOrderResponse = zod.object({
   "totalValue": zod.number()
 })),
   "createdAt": zod.coerce.date()
+})
+
+
+export const GetBootstrapStatusResponse = zod.object({
+  "needsAdministrator": zod.boolean()
+})
+
+
+export const GetCurrentUserResponse = zod.object({
+  "id": zod.number(),
+  "clerkUserId": zod.string(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['administrator', 'manager', 'employee', 'consultation']),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const ListUsersResponseItem = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['administrator', 'manager', 'employee', 'consultation']),
+  "status": zod.enum(['active', 'invited']),
+  "createdAt": zod.coerce.date()
+})
+export const ListUsersResponse = zod.array(ListUsersResponseItem)
+
+
+export const inviteUserBodyEmailMin = 3;
+
+
+
+
+export const InviteUserBody = zod.object({
+  "email": zod.string().min(inviteUserBodyEmailMin),
+  "name": zod.string().min(1),
+  "role": zod.enum(['administrator', 'manager', 'employee', 'consultation'])
+})
+
+export const InviteUserResponse = zod.object({
+  "id": zod.number(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['administrator', 'manager', 'employee', 'consultation']),
+  "status": zod.enum(['active', 'invited']),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const DeleteUserParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteUserResponse = zod.void()
+
+
+export const ListWarehousesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "address": zod.string().nullable(),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListWarehousesResponse = zod.array(ListWarehousesResponseItem)
+
+
+
+
+
+
+export const CreateWarehouseBody = zod.object({
+  "name": zod.string().min(1),
+  "code": zod.string().min(1),
+  "address": zod.string().optional(),
+  "active": zod.boolean().optional()
+})
+
+export const CreateWarehouseResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "address": zod.string().nullable(),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const UpdateWarehouseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateWarehouseBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "code": zod.string().min(1).optional(),
+  "address": zod.string().nullish(),
+  "active": zod.boolean().optional()
+})
+
+export const UpdateWarehouseResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "address": zod.string().nullable(),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const DeleteWarehouseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteWarehouseResponse = zod.void()
+
+
+export const ListLocationsQueryParams = zod.object({
+  "warehouseId": zod.coerce.number().optional()
+})
+
+export const ListLocationsResponseItem = zod.object({
+  "id": zod.number(),
+  "warehouseId": zod.number(),
+  "warehouseName": zod.string(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListLocationsResponse = zod.array(ListLocationsResponseItem)
+
+
+
+
+
+
+export const CreateLocationBody = zod.object({
+  "warehouseId": zod.number(),
+  "name": zod.string().min(1),
+  "code": zod.string().min(1),
+  "description": zod.string().optional()
+})
+
+export const CreateLocationResponse = zod.object({
+  "id": zod.number(),
+  "warehouseId": zod.number(),
+  "warehouseName": zod.string(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const UpdateLocationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateLocationBody = zod.object({
+  "warehouseId": zod.number().optional(),
+  "name": zod.string().min(1).optional(),
+  "code": zod.string().min(1).optional(),
+  "description": zod.string().nullish()
+})
+
+export const UpdateLocationResponse = zod.object({
+  "id": zod.number(),
+  "warehouseId": zod.number(),
+  "warehouseName": zod.string(),
+  "name": zod.string(),
+  "code": zod.string(),
+  "description": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const DeleteLocationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteLocationResponse = zod.void()
+
+
+export const ListInventoryQueryParams = zod.object({
+  "warehouseId": zod.coerce.number().optional(),
+  "productId": zod.coerce.number().optional()
+})
+
+export const ListInventoryResponseItem = zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "sku": zod.string(),
+  "unitPrice": zod.number(),
+  "warehouseId": zod.number(),
+  "warehouseName": zod.string(),
+  "locationId": zod.number(),
+  "locationName": zod.string(),
+  "quantity": zod.number(),
+  "minStock": zod.number(),
+  "maxStock": zod.number(),
+  "inventoryValue": zod.number()
+})
+export const ListInventoryResponse = zod.array(ListInventoryResponseItem)
+
+
+export const ListCustomersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "document": zod.string().nullable(),
+  "phone": zod.string(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "purchaseCount": zod.number(),
+  "totalSpent": zod.number()
+})
+export const ListCustomersResponse = zod.array(ListCustomersResponseItem)
+
+
+
+
+
+
+export const CreateCustomerBody = zod.object({
+  "name": zod.string().min(1),
+  "document": zod.string().optional(),
+  "phone": zod.string().min(1),
+  "email": zod.string().optional(),
+  "address": zod.string().optional()
+})
+
+export const CreateCustomerResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "document": zod.string().nullable(),
+  "phone": zod.string(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "purchaseCount": zod.number(),
+  "totalSpent": zod.number()
+})
+
+
+export const GetCustomerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCustomerResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "document": zod.string().nullable(),
+  "phone": zod.string(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "purchaseCount": zod.number(),
+  "totalSpent": zod.number()
+})
+
+
+export const UpdateCustomerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateCustomerBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "document": zod.string().nullish(),
+  "phone": zod.string().min(1).optional(),
+  "email": zod.string().nullish(),
+  "address": zod.string().nullish()
+})
+
+export const UpdateCustomerResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "document": zod.string().nullable(),
+  "phone": zod.string(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "purchaseCount": zod.number(),
+  "totalSpent": zod.number()
+})
+
+
+export const DeleteCustomerParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteCustomerResponse = zod.void()
+
+
+export const GetCustomerPurchaseHistoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCustomerPurchaseHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['in', 'out']),
+  "status": zod.enum(['finalized']),
+  "customerName": zod.string().nullable(),
+  "customerPhone": zod.string().nullable(),
+  "customerId": zod.number().nullable(),
+  "supplierId": zod.number().nullable(),
+  "supplierName": zod.string().nullable(),
+  "locationId": zod.number().nullable(),
+  "locationName": zod.string().nullable(),
+  "paymentMethod": zod.union([zod.literal('pix'),zod.literal('cash'),zod.literal('debit_card'),zod.literal('credit_card'),zod.literal('transfer'),zod.literal('other'),zod.literal(null)]).nullable(),
+  "installments": zod.number(),
+  "totalItems": zod.number(),
+  "totalValue": zod.number(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "sku": zod.string(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number(),
+  "totalValue": zod.number()
+})),
+  "createdAt": zod.coerce.date()
+})
+export const GetCustomerPurchaseHistoryResponse = zod.array(GetCustomerPurchaseHistoryResponseItem)
+
+
+export const ListSuppliersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "document": zod.string().nullable(),
+  "phone": zod.string(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const ListSuppliersResponse = zod.array(ListSuppliersResponseItem)
+
+
+
+
+
+
+export const CreateSupplierBody = zod.object({
+  "name": zod.string().min(1),
+  "document": zod.string().optional(),
+  "phone": zod.string().min(1),
+  "email": zod.string().optional(),
+  "address": zod.string().optional()
+})
+
+export const CreateSupplierResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "document": zod.string().nullable(),
+  "phone": zod.string(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const UpdateSupplierParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+export const UpdateSupplierBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "document": zod.string().nullish(),
+  "phone": zod.string().min(1).optional(),
+  "email": zod.string().nullish(),
+  "address": zod.string().nullish()
+})
+
+export const UpdateSupplierResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "document": zod.string().nullable(),
+  "phone": zod.string(),
+  "email": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+
+
+export const DeleteSupplierParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteSupplierResponse = zod.void()
+
+
+export const GetStockReportQueryParams = zod.object({
+  "warehouseId": zod.coerce.number().optional()
+})
+
+export const GetStockReportResponseItem = zod.object({
+  "productId": zod.number(),
+  "sku": zod.string(),
+  "productName": zod.string(),
+  "category": zod.string(),
+  "warehouseId": zod.number(),
+  "warehouseName": zod.string(),
+  "locationId": zod.number(),
+  "locationName": zod.string(),
+  "quantity": zod.number(),
+  "minStock": zod.number(),
+  "maxStock": zod.number(),
+  "unitPrice": zod.number(),
+  "inventoryValue": zod.number(),
+  "status": zod.enum(['normal', 'low', 'out', 'above_maximum'])
+})
+export const GetStockReportResponse = zod.array(GetStockReportResponseItem)
+
+
+export const GetMovementReportQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional(),
+  "warehouseId": zod.coerce.number().optional()
+})
+
+export const GetMovementReportResponseItem = zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "type": zod.enum(['in', 'out', 'adjustment']),
+  "quantity": zod.number(),
+  "note": zod.string().nullable(),
+  "warehouseName": zod.string().nullable(),
+  "locationName": zod.string().nullable(),
+  "createdAt": zod.coerce.date()
+})
+export const GetMovementReportResponse = zod.array(GetMovementReportResponseItem)
+
+
+export const GetSalesReportQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional()
+})
+
+export const GetSalesReportResponse = zod.object({
+  "orderCount": zod.number(),
+  "itemCount": zod.number(),
+  "revenue": zod.number(),
+  "byProduct": zod.array(zod.object({
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "sku": zod.string(),
+  "quantity": zod.number(),
+  "revenue": zod.number()
+}))
+})
+
+
+export const GetPurchaseReportQueryParams = zod.object({
+  "from": zod.date().optional(),
+  "to": zod.date().optional()
+})
+
+export const GetPurchaseReportResponse = zod.object({
+  "orderCount": zod.number(),
+  "itemCount": zod.number(),
+  "totalValue": zod.number(),
+  "bySupplier": zod.array(zod.object({
+  "supplierId": zod.number().nullable(),
+  "supplierName": zod.string(),
+  "orderCount": zod.number(),
+  "itemCount": zod.number(),
+  "totalValue": zod.number()
+})),
+  "byProduct": zod.array(zod.object({
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "sku": zod.string(),
+  "quantity": zod.number(),
+  "totalValue": zod.number()
+}))
 })
 
 

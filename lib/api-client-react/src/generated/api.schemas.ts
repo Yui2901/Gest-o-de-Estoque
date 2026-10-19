@@ -36,6 +36,7 @@ export interface Product {
   unitPrice: number;
   stock: number;
   minStock: number;
+  maxStock: number;
   status: ProductStatus;
   updatedAt: string;
 }
@@ -64,6 +65,9 @@ export interface ProductInput {
   stock: number;
   /** @minimum 0 */
   minStock: number;
+  /** @minimum 0 */
+  maxStock?: number;
+  locationId?: number;
 }
 
 export type ProductUpdateAccent = typeof ProductUpdateAccent[keyof typeof ProductUpdateAccent];
@@ -88,6 +92,8 @@ export interface ProductUpdate {
   unitPrice?: number;
   /** @minimum 0 */
   minStock?: number;
+  /** @minimum 0 */
+  maxStock?: number;
 }
 
 export type StockMovementInputType = typeof StockMovementInputType[keyof typeof StockMovementInputType];
@@ -96,12 +102,13 @@ export type StockMovementInputType = typeof StockMovementInputType[keyof typeof 
 export const StockMovementInputType = {
   in: 'in',
   out: 'out',
+  adjustment: 'adjustment',
 } as const;
 
 export interface StockMovementInput {
   type: StockMovementInputType;
-  /** @minimum 1 */
   quantity: number;
+  locationId?: number;
   note?: string;
 }
 
@@ -119,6 +126,7 @@ export type ActivityType = typeof ActivityType[keyof typeof ActivityType];
 export const ActivityType = {
   in: 'in',
   out: 'out',
+  adjustment: 'adjustment',
 } as const;
 
 export interface Activity {
@@ -128,6 +136,10 @@ export interface Activity {
   quantity: number;
   /** @nullable */
   note?: string | null;
+  /** @nullable */
+  warehouseName?: string | null;
+  /** @nullable */
+  locationName?: string | null;
   createdAt: string;
 }
 
@@ -135,6 +147,8 @@ export interface OrderItemInput {
   productId: number;
   /** @minimum 1 */
   quantity: number;
+  /** @minimum 0 */
+  unitPrice?: number;
 }
 
 export type OrderInputType = typeof OrderInputType[keyof typeof OrderInputType];
@@ -163,6 +177,9 @@ export interface OrderInput {
   customerName?: string;
   /** @minLength 1 */
   customerPhone?: string;
+  customerId?: number;
+  supplierId?: number;
+  locationId?: number;
   paymentMethod?: OrderInputPaymentMethod;
   /**
      * @minimum 1
@@ -222,12 +239,310 @@ export interface Order {
   /** @nullable */
   customerPhone: string | null;
   /** @nullable */
+  customerId: number | null;
+  /** @nullable */
+  supplierId: number | null;
+  /** @nullable */
+  supplierName: string | null;
+  /** @nullable */
+  locationId: number | null;
+  /** @nullable */
+  locationName: string | null;
+  /** @nullable */
   paymentMethod: OrderPaymentMethod;
   installments: number;
   totalItems: number;
   totalValue: number;
   items: OrderItem[];
   createdAt: string;
+}
+
+export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+
+export const UserRole = {
+  administrator: 'administrator',
+  manager: 'manager',
+  employee: 'employee',
+  consultation: 'consultation',
+} as const;
+
+export interface BootstrapStatus {
+  needsAdministrator: boolean;
+}
+
+export interface AppUser {
+  id: number;
+  clerkUserId: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  createdAt: string;
+}
+
+export type ManagedUserStatus = typeof ManagedUserStatus[keyof typeof ManagedUserStatus];
+
+
+export const ManagedUserStatus = {
+  active: 'active',
+  invited: 'invited',
+} as const;
+
+export interface ManagedUser {
+  id: number;
+  email: string;
+  name: string;
+  role: UserRole;
+  status: ManagedUserStatus;
+  createdAt: string;
+}
+
+export interface UserInvitationInput {
+  /** @minLength 3 */
+  email: string;
+  /** @minLength 1 */
+  name: string;
+  role: UserRole;
+}
+
+export interface Warehouse {
+  id: number;
+  name: string;
+  code: string;
+  /** @nullable */
+  address: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface WarehouseInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  code: string;
+  address?: string;
+  active?: boolean;
+}
+
+export interface WarehouseUpdate {
+  /** @minLength 1 */
+  name?: string;
+  /** @minLength 1 */
+  code?: string;
+  /** @nullable */
+  address?: string | null;
+  active?: boolean;
+}
+
+export interface StorageLocation {
+  id: number;
+  warehouseId: number;
+  warehouseName: string;
+  name: string;
+  code: string;
+  /** @nullable */
+  description: string | null;
+  createdAt: string;
+}
+
+export interface StorageLocationInput {
+  warehouseId: number;
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  code: string;
+  description?: string;
+}
+
+export interface StorageLocationUpdate {
+  warehouseId?: number;
+  /** @minLength 1 */
+  name?: string;
+  /** @minLength 1 */
+  code?: string;
+  /** @nullable */
+  description?: string | null;
+}
+
+export interface InventoryBalance {
+  id: number;
+  productId: number;
+  productName: string;
+  sku: string;
+  unitPrice: number;
+  warehouseId: number;
+  warehouseName: string;
+  locationId: number;
+  locationName: string;
+  quantity: number;
+  minStock: number;
+  maxStock: number;
+  inventoryValue: number;
+}
+
+export interface Customer {
+  id: number;
+  name: string;
+  /** @nullable */
+  document: string | null;
+  phone: string;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  address: string | null;
+  createdAt: string;
+  purchaseCount: number;
+  totalSpent: number;
+}
+
+export interface CustomerInput {
+  /** @minLength 1 */
+  name: string;
+  document?: string;
+  /** @minLength 1 */
+  phone: string;
+  email?: string;
+  address?: string;
+}
+
+export interface CustomerUpdate {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  document?: string | null;
+  /** @minLength 1 */
+  phone?: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  address?: string | null;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  /** @nullable */
+  document: string | null;
+  phone: string;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  address: string | null;
+  createdAt: string;
+}
+
+export interface SupplierInput {
+  /** @minLength 1 */
+  name: string;
+  document?: string;
+  /** @minLength 1 */
+  phone: string;
+  email?: string;
+  address?: string;
+}
+
+export interface SupplierUpdate {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  document?: string | null;
+  /** @minLength 1 */
+  phone?: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  address?: string | null;
+}
+
+export type StockReportRowStatus = typeof StockReportRowStatus[keyof typeof StockReportRowStatus];
+
+
+export const StockReportRowStatus = {
+  normal: 'normal',
+  low: 'low',
+  out: 'out',
+  above_maximum: 'above_maximum',
+} as const;
+
+export interface StockReportRow {
+  productId: number;
+  sku: string;
+  productName: string;
+  category: string;
+  warehouseId: number;
+  warehouseName: string;
+  locationId: number;
+  locationName: string;
+  quantity: number;
+  minStock: number;
+  maxStock: number;
+  unitPrice: number;
+  inventoryValue: number;
+  status: StockReportRowStatus;
+}
+
+export type MovementReportRowType = typeof MovementReportRowType[keyof typeof MovementReportRowType];
+
+
+export const MovementReportRowType = {
+  in: 'in',
+  out: 'out',
+  adjustment: 'adjustment',
+} as const;
+
+export interface MovementReportRow {
+  id: number;
+  productId: number;
+  productName: string;
+  type: MovementReportRowType;
+  quantity: number;
+  /** @nullable */
+  note: string | null;
+  /** @nullable */
+  warehouseName: string | null;
+  /** @nullable */
+  locationName: string | null;
+  createdAt: string;
+}
+
+export interface SalesProductSummary {
+  productId: number;
+  productName: string;
+  sku: string;
+  quantity: number;
+  revenue: number;
+}
+
+export interface SalesReport {
+  orderCount: number;
+  itemCount: number;
+  revenue: number;
+  byProduct: SalesProductSummary[];
+}
+
+export interface PurchaseSupplierSummary {
+  /** @nullable */
+  supplierId: number | null;
+  supplierName: string;
+  orderCount: number;
+  itemCount: number;
+  totalValue: number;
+}
+
+export interface PurchaseProductSummary {
+  productId: number;
+  productName: string;
+  sku: string;
+  quantity: number;
+  totalValue: number;
+}
+
+export interface PurchaseReport {
+  orderCount: number;
+  itemCount: number;
+  totalValue: number;
+  bySupplier: PurchaseSupplierSummary[];
+  byProduct: PurchaseProductSummary[];
 }
 
 export type ListProductsParams = {
@@ -245,4 +560,33 @@ export const ListProductsStatus = {
   low: 'low',
   out: 'out',
 } as const;
+
+export type ListLocationsParams = {
+warehouseId?: number;
+};
+
+export type ListInventoryParams = {
+warehouseId?: number;
+productId?: number;
+};
+
+export type GetStockReportParams = {
+warehouseId?: number;
+};
+
+export type GetMovementReportParams = {
+from?: string;
+to?: string;
+warehouseId?: number;
+};
+
+export type GetSalesReportParams = {
+from?: string;
+to?: string;
+};
+
+export type GetPurchaseReportParams = {
+from?: string;
+to?: string;
+};
 

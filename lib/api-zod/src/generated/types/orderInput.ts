@@ -15,6 +15,9 @@ export interface OrderInput {
   customerName?: string;
   /** @minLength 1 */
   customerPhone?: string;
+  customerId?: number;
+  supplierId?: number;
+  locationId?: number;
   paymentMethod?: OrderInputPaymentMethod;
   /**
      * @minimum 1

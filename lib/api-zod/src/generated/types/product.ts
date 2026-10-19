@@ -18,6 +18,7 @@ export interface Product {
   unitPrice: number;
   stock: bigint;
   minStock: bigint;
+  maxStock: bigint;
   status: ProductStatus;
   updatedAt: Date;
 }

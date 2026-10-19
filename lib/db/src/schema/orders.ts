@@ -1,6 +1,9 @@
 import { bigint, integer, pgTable, real, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { customersTable } from "./customers";
+import { suppliersTable } from "./suppliers";
+import { storageLocationsTable } from "./warehouses";
 
 export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
@@ -8,6 +11,9 @@ export const ordersTable = pgTable("orders", {
   status: text("status").notNull().default("finalized"),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
+  customerId: integer("customer_id").references(() => customersTable.id, { onDelete: "set null" }),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id, { onDelete: "set null" }),
+  locationId: integer("location_id").references(() => storageLocationsTable.id, { onDelete: "set null" }),
   paymentMethod: text("payment_method"),
   installments: integer("installments").notNull().default(1),
   totalItems: bigint("total_items", { mode: "number" }).notNull().default(0),

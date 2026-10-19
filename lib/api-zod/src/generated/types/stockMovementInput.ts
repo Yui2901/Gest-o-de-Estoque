@@ -9,7 +9,7 @@ import type { StockMovementInputType } from './stockMovementInputType';
 
 export interface StockMovementInput {
   type: StockMovementInputType;
-  /** @minimum 1 */
   quantity: bigint;
+  locationId?: number;
   note?: string;
 }

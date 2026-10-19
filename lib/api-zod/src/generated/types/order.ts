@@ -19,6 +19,16 @@ export interface Order {
   /** @nullable */
   customerPhone: string | null;
   /** @nullable */
+  customerId: number | null;
+  /** @nullable */
+  supplierId: number | null;
+  /** @nullable */
+  supplierName: string | null;
+  /** @nullable */
+  locationId: number | null;
+  /** @nullable */
+  locationName: string | null;
+  /** @nullable */
   paymentMethod: OrderPaymentMethod;
   installments: number;
   totalItems: bigint;

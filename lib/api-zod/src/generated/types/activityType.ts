@@ -12,4 +12,5 @@ export type ActivityType = typeof ActivityType[keyof typeof ActivityType];
 export const ActivityType = {
   in: 'in',
   out: 'out',
+  adjustment: 'adjustment',
 } as const;

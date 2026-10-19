@@ -14,5 +14,9 @@ export interface Activity {
   quantity: bigint;
   /** @nullable */
   note?: string | null;
+  /** @nullable */
+  warehouseName?: string | null;
+  /** @nullable */
+  locationName?: string | null;
   createdAt: Date;
 }

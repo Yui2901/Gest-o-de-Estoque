@@ -12,6 +12,7 @@ export const productsTable = pgTable("products", {
   unitPrice: real("unit_price").notNull().default(0),
   stock: bigint("stock", { mode: "number" }).notNull().default(0),
   minStock: bigint("min_stock", { mode: "number" }).notNull().default(0),
+  maxStock: bigint("max_stock", { mode: "number" }).notNull().default(0),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
