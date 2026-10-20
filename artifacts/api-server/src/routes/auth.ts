@@ -89,6 +89,7 @@ router.post("/users", administratorOnly, async (req, res): Promise<void> => {
     const invitation = await clerkClient.invitations.createInvitation({
       emailAddress: normalizedEmail,
       publicMetadata: { appRole: role, appName: "Nuvem Estoque" },
+      redirectUrl: "/sign-up",
     });
     const [savedInvitation] = await db
       .insert(userInvitationsTable)

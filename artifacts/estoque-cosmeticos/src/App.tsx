@@ -142,18 +142,18 @@ function openWhatsAppReceipt(order: Order) {
 const PROFILE_STORAGE_KEY = 'seller-profile';
 
 const defaultProfile: SellerProfile = {
-  name: 'Marina Costa',
-  role: 'Operação',
-  email: 'marina@exemplo.com',
-  phone: '(11) 98765-4321',
-  store: 'Nuvem Cosméticos',
+  name: '',
+  role: '',
+  email: '',
+  phone: '',
+  store: '',
 };
 
 function normalizeProfile(value: unknown): SellerProfile {
   const saved = value && typeof value === 'object' ? value as Partial<SellerProfile> : {};
   return {
-    name: typeof saved.name === 'string' && saved.name.trim() ? saved.name.trim() : defaultProfile.name,
-    role: typeof saved.role === 'string' && saved.role.trim() ? saved.role.trim() : defaultProfile.role,
+    name: typeof saved.name === 'string' ? saved.name.trim() : defaultProfile.name,
+    role: typeof saved.role === 'string' ? saved.role.trim() : defaultProfile.role,
     email: typeof saved.email === 'string' ? saved.email : defaultProfile.email,
     phone: typeof saved.phone === 'string' ? saved.phone : defaultProfile.phone,
     store: typeof saved.store === 'string' ? saved.store : defaultProfile.store,
@@ -177,7 +177,7 @@ function saveProfile(profile: SellerProfile) {
 }
 
 function profileInitials(name: string) {
-  return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'MC';
+  return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
 }
 
 type ProductForm = {
@@ -483,19 +483,10 @@ function BrandMark() {
 function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [profile, setProfile] = useState<SellerProfile>(readProfile);
   const { signOut } = useClerk();
   const currentUserQuery = useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey() } });
   const role = currentUserQuery.data?.role ?? 'employee';
-  useEffect(() => {
-    const syncProfile = () => setProfile(readProfile());
-    window.addEventListener('profilechange', syncProfile);
-    window.addEventListener('storage', syncProfile);
-    return () => {
-      window.removeEventListener('profilechange', syncProfile);
-      window.removeEventListener('storage', syncProfile);
-    };
-  }, []);
+  const accountName = currentUserQuery.data?.name?.trim() ?? '';
   const isConsultation = role === 'consultation';
   const links = [
     { href: '/user-portal', label: 'Visão geral', icon: Home, show: true },
@@ -534,8 +525,8 @@ function Shell({ children }: { children: ReactNode }) {
           <Link href="/produtos?status=low" data-testid="link-low-stock" className="mt-3 inline-flex items-center gap-1 text-[12px] font-bold text-sidebar-primary">Ver alertas <ChevronRight size={13} /></Link>
         </div>
         <div className="mt-5 flex items-center gap-3 border-t border-sidebar-border pt-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#df693f] text-xs font-extrabold text-white">{profileInitials(profile.name)}</div>
-          <div className="min-w-0 flex-1"><p className="max-w-[145px] truncate text-xs font-bold">{currentUserQuery.data?.name || profile.name}</p><p className="text-[10px] text-sidebar-foreground/45">{role === 'administrator' ? 'Administrador' : role === 'manager' ? 'Gerente' : role === 'consultation' ? 'Consulta' : 'Funcionário'}</p></div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#df693f] text-xs font-extrabold text-white">{profileInitials(accountName)}</div>
+          <div className="min-w-0 flex-1"><p className="max-w-[145px] truncate text-xs font-bold">{currentUserQuery.isLoading ? 'Carregando conta…' : accountName || 'Conta'}</p><p className="text-[10px] text-sidebar-foreground/45">{role === 'administrator' ? 'Administrador' : role === 'manager' ? 'Gerente' : role === 'consultation' ? 'Consulta' : 'Funcionário'}</p></div>
           <button type="button" onClick={() => signOut({ redirectUrl: import.meta.env.BASE_URL })} data-testid="button-sign-out" className="rounded-lg px-2 py-1 text-[10px] font-bold text-sidebar-foreground/65 hover:bg-sidebar-accent">Sair</button>
         </div>
       </div>
@@ -583,14 +574,14 @@ function Dashboard() {
   const productsQuery = useListProducts({}, { query: { staleTime: 30_000, queryKey: getListProductsQueryKey({}) } });
   const currentUser = useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey() } });
   const canManageProducts = currentUser.data?.role === 'administrator' || currentUser.data?.role === 'manager';
-  const profile = readProfile();
+  const accountName = currentUser.data?.name?.trim().split(/\s+/)[0] ?? '';
   const summary = summaryQuery.data;
   const products = productsQuery.data ?? [];
   const attention = useMemo(() => products.filter((product) => product.status !== 'normal').slice(0, 4), [products]);
   const activity = (activityQuery.data ?? []).slice(0, 6);
   const hasError = summaryQuery.isError || activityQuery.isError;
   return <div className="page-enter px-5 py-8 sm:px-8 lg:px-12 lg:py-11">
-    <PageHeader eyebrow="terça, 24 de junho" title={`Bom dia, ${profile.name.split(' ')[0] || 'por aqui'}.`} description="Seu inventário em um só lugar. Aqui está o que pede atenção hoje." action={canManageProducts ? <Link href="/produtos/novo" data-testid="link-new-product-dashboard" className="inline-flex w-fit items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:-translate-y-0.5 hover:brightness-105"><Plus size={16} /> Novo produto</Link> : undefined} />
+    <PageHeader eyebrow={new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())} title={accountName ? `Bom dia, ${accountName}.` : 'Bom dia.'} description="Seu inventário em um só lugar. Aqui está o que pede atenção hoje." action={canManageProducts ? <Link href="/produtos/novo" data-testid="link-new-product-dashboard" className="inline-flex w-fit items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:-translate-y-0.5 hover:brightness-105"><Plus size={16} /> Novo produto</Link> : undefined} />
     {hasError ? <QueryError onRetry={() => { void summaryQuery.refetch(); void activityQuery.refetch(); }} /> : <>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryQuery.isLoading ? Array.from({ length: 4 }).map((_, index) => <SkeletonBlock key={index} className="h-[164px]" />) : summary ? <>
@@ -966,6 +957,16 @@ function ProfilePage() {
   const [profile, setProfile] = useState<SellerProfile>(readProfile);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const currentUser = useGetCurrentUser({ query: { queryKey: getGetCurrentUserQueryKey() } });
+  const accountName = currentUser.data?.name?.trim() ?? '';
+  const accountEmail = currentUser.data?.email ?? '';
+  const accountRole = currentUser.data?.role === 'administrator'
+    ? 'Administrador'
+    : currentUser.data?.role === 'manager'
+      ? 'Gerente'
+      : currentUser.data?.role === 'consultation'
+        ? 'Consulta'
+        : 'Funcionário';
 
   const setField = (key: keyof SellerProfile, value: string) => {
     setSaved(false);
@@ -975,16 +976,16 @@ function ProfilePage() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!profile.name.trim()) {
-      setError('Informe seu nome para salvar o perfil.');
+    if (!accountName) {
+      setError('Não foi possível carregar o nome da sua conta. Tente novamente.');
       return;
     }
     try {
       setProfile(saveProfile({
         ...profile,
-        name: profile.name.trim(),
-        role: profile.role.trim() || 'Operação',
-        email: profile.email.trim(),
+        name: accountName,
+        role: accountRole,
+        email: accountEmail,
         phone: profile.phone.trim(),
         store: profile.store.trim(),
       }));
@@ -1003,9 +1004,10 @@ function ProfilePage() {
           <div className="absolute -bottom-20 -left-14 h-44 w-44 rounded-full border-[22px] border-[#ee7e9f]/20" />
           <div className="relative">
             <p className="font-mono text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/50">Sua presença</p>
-            <div className="mt-7 flex h-24 w-24 items-center justify-center rounded-[28px] border-4 border-[#f6b3c7]/30 bg-[#ee7e9f] text-3xl font-extrabold text-[#3d1e2c] shadow-[0_10px_25px_rgba(238,126,159,.2)]">{profileInitials(profile.name)}</div>
-            <h2 className="mt-6 text-xl font-extrabold tracking-[-.04em]">{profile.name || 'Seu nome'}</h2>
-            <p className="mt-1 text-sm text-sidebar-foreground/60">{profile.role || 'Operação'}</p>
+            <div className="mt-7 flex h-24 w-24 items-center justify-center rounded-[28px] border-4 border-[#f6b3c7]/30 bg-[#ee7e9f] text-3xl font-extrabold text-[#3d1e2c] shadow-[0_10px_25px_rgba(238,126,159,.2)]">{profileInitials(accountName)}</div>
+            <h2 className="mt-6 text-xl font-extrabold tracking-[-.04em]">{currentUser.isLoading ? 'Carregando conta…' : accountName || 'Conta'}</h2>
+            <p className="mt-1 text-sm text-sidebar-foreground/60">{accountRole}</p>
+            <p className="mt-1 text-xs text-sidebar-foreground/55">{accountEmail}</p>
             <div className="mt-8 border-t border-sidebar-border pt-5">
               <p className="text-[11px] leading-relaxed text-sidebar-foreground/65">Esses dados aparecem no acesso rápido do sistema e ajudam a identificar quem está cuidando do estoque.</p>
             </div>
@@ -1017,16 +1019,15 @@ function ProfilePage() {
             <div><h2 className="text-sm font-extrabold">Informações do perfil</h2><p className="mt-0.5 text-[11px] text-muted-foreground">Dados usados para personalizar seu espaço.</p></div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Nome completo" value={profile.name} onChange={(value) => setField('name', value)} placeholder="Ex.: Marina Costa" testId="input-profile-name" required />
-            <Field label="Função" value={profile.role} onChange={(value) => setField('role', value)} placeholder="Ex.: Operação" testId="input-profile-role" />
-            <Field label="E-mail" value={profile.email} onChange={(value) => setField('email', value)} placeholder="voce@exemplo.com" testId="input-profile-email" type="email" />
-            <Field label="Telefone" value={profile.phone} onChange={(value) => setField('phone', value)} placeholder="(00) 00000-0000" testId="input-profile-phone" type="tel" />
+            <div className="rounded-xl border border-border bg-muted/40 p-3"><p className="text-[11px] font-bold text-muted-foreground">Nome cadastrado</p><p data-testid="text-profile-account-name" className="mt-1 text-sm font-semibold">{accountName || 'Carregando…'}</p></div>
+            <div className="rounded-xl border border-border bg-muted/40 p-3"><p className="text-[11px] font-bold text-muted-foreground">E-mail da conta</p><p className="mt-1 break-all text-sm font-semibold">{accountEmail || 'Carregando…'}</p></div>
+            <Field label="Telefone de contato" value={profile.phone} onChange={(value) => setField('phone', value)} placeholder="(00) 00000-0000" testId="input-profile-phone" type="tel" />
           </div>
           <div className="mt-4"><Field label="Nome da loja" value={profile.store} onChange={(value) => setField('store', value)} placeholder="Ex.: Nuvem Cosméticos" testId="input-profile-store" /></div>
           {error && <p className="mt-4 text-xs font-bold text-destructive">{error}</p>}
           <div className="mt-7 flex flex-col-reverse items-stretch justify-end gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center">
             {saved && <span className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-700 sm:mr-auto"><Check size={15} /> Perfil atualizado</span>}
-            <button type="submit" data-testid="button-save-profile" className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:-translate-y-0.5 hover:brightness-105"><Save size={15} /> Salvar alterações</button>
+            <button type="submit" disabled={currentUser.isLoading || !accountName} data-testid="button-save-profile" className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-xs font-extrabold text-primary-foreground shadow-[0_8px_18px_rgba(194,74,112,.18)] transition hover:-translate-y-0.5 hover:brightness-105 disabled:opacity-50"><Save size={15} /> Salvar alterações</button>
           </div>
         </section>
       </div>
@@ -1128,11 +1129,52 @@ function HomeRedirect() {
 function SignInPage() {
   return <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-10"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div>;
 }
+function hasClerkInvitationCredential() {
+  const params = new URLSearchParams(window.location.search);
+  return params.has('__clerk_ticket') || params.has('__clerk_invitation_token');
+}
 function SignUpPage() {
+  const [invitationMode, setInvitationMode] = useState(() => {
+    const hasTicket = hasClerkInvitationCredential();
+    try {
+      if (hasTicket) window.sessionStorage.setItem('clerk-invitation-pending', 'true');
+      return hasTicket || window.sessionStorage.getItem('clerk-invitation-pending') === 'true';
+    } catch {
+      return hasTicket;
+    }
+  });
+  const [registrationName, setRegistrationName] = useState(() => {
+    try { return window.sessionStorage.getItem('initial-admin-registration-name') ?? ''; } catch { return ''; }
+  });
+  const [nameConfirmed, setNameConfirmed] = useState(() => Boolean(registrationName));
+  const [nameError, setNameError] = useState('');
   const bootstrap = useGetBootstrapStatus();
-  if (bootstrap.isLoading) return <div className="grid min-h-[100dvh] place-items-center bg-background"><div className="skeleton h-[430px] w-[min(440px,90vw)] rounded-2xl bg-muted"/></div>;
-  if (bootstrap.isError || !bootstrap.data?.needsAdministrator) return <div className="grid min-h-[100dvh] place-items-center bg-background px-5"><div className="max-w-md rounded-2xl border border-border bg-card p-8 text-center"><h1 className="text-xl font-extrabold">Acesso por convite</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">O cadastro inicial já foi concluído. Peça a um administrador para convidar você.</p><Link href="/sign-in" data-testid="link-signup-to-login" className="mt-5 inline-flex rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground">Ir para entrar</Link></div></div>;
-  return <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-10"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div>;
+  useEffect(() => {
+    if (hasClerkInvitationCredential()) {
+      setInvitationMode(true);
+      try { window.sessionStorage.setItem('clerk-invitation-pending', 'true'); } catch {}
+    }
+  }, []);
+  if (bootstrap.isLoading && !invitationMode) return <div className="grid min-h-[100dvh] place-items-center bg-background"><div className="skeleton h-[430px] w-[min(440px,90vw)] rounded-2xl bg-muted"/></div>;
+  if (!invitationMode && (bootstrap.isError || !bootstrap.data?.needsAdministrator)) return <div className="grid min-h-[100dvh] place-items-center bg-background px-5"><div className="max-w-md rounded-2xl border border-border bg-card p-8 text-center"><h1 className="text-xl font-extrabold">Acesso por convite</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">O cadastro inicial já foi concluído. Peça a um administrador para convidar você.</p><Link href="/sign-in" data-testid="link-signup-to-login" className="mt-5 inline-flex rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground">Ir para entrar</Link></div></div>;
+  if (invitationMode) return <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-10"><div className="w-full max-w-md"><p className="mb-4 text-center text-sm font-bold text-muted-foreground">Finalize seu convite para acessar a operação.</p><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} forceRedirectUrl={`${basePath}/user-portal`} /></div></div>;
+  return <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-10">
+    {!nameConfirmed ? <form onSubmit={(event) => { event.preventDefault(); const cleanName = registrationName.trim(); if (!cleanName) { setNameError('Informe seu nome para continuar.'); return; } try { window.sessionStorage.setItem('initial-admin-registration-name', cleanName); } catch { setNameError('Não foi possível salvar seu nome neste navegador. Habilite o armazenamento e tente novamente.'); return; } setRegistrationName(cleanName); setNameConfirmed(true); setNameError(''); }} className="w-full max-w-md rounded-2xl border border-border bg-card p-7 shadow-xl sm:p-8">
+      <p className="font-mono text-[10px] uppercase tracking-[.18em] text-primary">primeiro acesso</p>
+      <h1 className="mt-2 text-2xl font-extrabold tracking-tight">Como devemos chamar você?</h1>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">Seu nome ficará salvo no perfil e será usado na saudação do painel.</p>
+      <label htmlFor="registration-full-name" className="mt-6 block text-xs font-bold">Nome completo</label>
+      <input id="registration-full-name" value={registrationName} onChange={(event) => { setRegistrationName(event.target.value); setNameError(''); }} autoComplete="name" required maxLength={120} data-testid="input-registration-name" className="mt-2 h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" placeholder="Seu nome" />
+      {nameError && <p role="alert" className="mt-2 text-xs font-semibold text-destructive">{nameError}</p>}
+      <button type="submit" data-testid="button-registration-name-continue" className="mt-5 w-full rounded-xl bg-primary px-4 py-3 text-sm font-extrabold text-primary-foreground">Continuar cadastro</button>
+    </form> : <div className="w-full max-w-md">
+      <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3 text-sm">
+        <span><span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Nome do perfil</span><strong>{registrationName}</strong></span>
+        <button type="button" onClick={() => setNameConfirmed(false)} data-testid="button-edit-registration-name" className="text-xs font-bold text-primary">Editar</button>
+      </div>
+      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} forceRedirectUrl={`${basePath}/user-portal`} unsafeMetadata={{ appFullName: registrationName }} />
+    </div>}
+  </div>;
 }
 function ProtectedRoutes() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -1147,6 +1189,12 @@ function ClerkQueryClientCacheInvalidator() {
     const unsubscribe = addListener(({ user }) => {
       const userId = user?.id ?? null;
       if (previousId.current !== undefined && previousId.current !== userId) cache.clear();
+      if (userId) {
+        try {
+          window.sessionStorage.removeItem('initial-admin-registration-name');
+          window.sessionStorage.removeItem('clerk-invitation-pending');
+        } catch {}
+      }
       previousId.current = userId;
     });
     return unsubscribe;
@@ -1156,7 +1204,7 @@ function ClerkQueryClientCacheInvalidator() {
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
   return <ClerkProvider publishableKey={clerkPubKey} proxyUrl={clerkProxyUrl} appearance={clerkAppearance} signInUrl={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`}
-    localization={{ signIn: { start: { title: 'Boas-vindas de volta', subtitle: 'Entre para acessar sua operação.' } }, signUp: { start: { title: 'Criar acesso administrador', subtitle: 'Prepare o espaço inicial da sua equipe.' } } }}
+    localization={{ signIn: { start: { title: 'Boas-vindas de volta', subtitle: 'Entre para acessar sua operação.' } }, signUp: { start: { title: 'Concluir cadastro', subtitle: 'Finalize seu acesso à equipe.' } } }}
     routerPush={(to) => setLocation(stripBase(to))} routerReplace={(to) => setLocation(stripBase(to), { replace: true })}>
     <QueryClientProvider client={queryClient}><ClerkQueryClientCacheInvalidator/><Switch>
       <Route path="/" component={HomeRedirect}/>

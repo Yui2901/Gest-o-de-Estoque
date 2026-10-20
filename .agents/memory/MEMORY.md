@@ -1,0 +1,1 @@
+- [Production database choice](production-database.md) — Supabase was selected for production; the connected development database is separate.

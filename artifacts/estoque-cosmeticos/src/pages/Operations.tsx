@@ -2,12 +2,13 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getListUsersQueryKey, getListWarehousesQueryKey, getListLocationsQueryKey,
-  getListInventoryQueryKey, getListCustomersQueryKey, getListSuppliersQueryKey,
+  getListInventoryQueryKey, getListProductsQueryKey, getListActivityQueryKey,
+  getGetDashboardSummaryQueryKey, getListCustomersQueryKey, getListSuppliersQueryKey,
   getGetStockReportQueryKey, getGetMovementReportQueryKey, getGetSalesReportQueryKey,
   getGetPurchaseReportQueryKey, getGetCustomerQueryKey, getGetCustomerPurchaseHistoryQueryKey,
   useListUsers, useInviteUser, useDeleteUser, useListWarehouses, useCreateWarehouse,
   useUpdateWarehouse, useDeleteWarehouse, useListLocations, useCreateLocation,
-  useUpdateLocation, useDeleteLocation, useListInventory, useListCustomers,
+  useUpdateLocation, useDeleteLocation, useListInventory, useCreateStockMovement, useListCustomers,
   useCreateCustomer, useGetCustomer, useUpdateCustomer, useDeleteCustomer,
   useGetCustomerPurchaseHistory, useListSuppliers, useCreateSupplier,
   useUpdateSupplier, useDeleteSupplier, useGetStockReport, useGetMovementReport,
@@ -98,8 +99,11 @@ export function WarehousesPage({ canManage = false }: { canManage?: boolean }) {
   const warehousesQ = useListWarehouses(); const locationsQ = useListLocations(); const inventoryQ = useListInventory();
   const createW = useCreateWarehouse(); const updateW = useUpdateWarehouse(); const deleteW = useDeleteWarehouse();
   const createL = useCreateLocation(); const updateL = useUpdateLocation(); const deleteL = useDeleteLocation();
+  const createMovement = useCreateStockMovement();
   const { refresh, message, setMessage } = useFeedback();
   const [formKind, setFormKind] = useState<'warehouse'|'location'|null>(null); const [editing, setEditing] = useState<{ kind: 'warehouse'|'location'; id: number }|null>(null);
+  const [adjustmentTarget, setAdjustmentTarget] = useState('');
+  const [adjustmentDelta, setAdjustmentDelta] = useState('');
   const warehouses = warehousesQ.data ?? []; const locations = locationsQ.data ?? []; const balances = inventoryQ.data ?? [];
   const wf = useForm<WarehouseInput>({ defaultValues: { name: '', code: '', address: '', active: true } });
   const lf = useForm<StorageLocationInput>({ defaultValues: { warehouseId: warehouses[0]?.id ?? 0, name: '', code: '', description: '' } });
@@ -107,6 +111,27 @@ export function WarehousesPage({ canManage = false }: { canManage?: boolean }) {
   const done = () => { setFormKind(null); setEditing(null); setMessage('Alterações salvas.'); refresh(getListWarehousesQueryKey(), getListLocationsQueryKey(), getListInventoryQueryKey()); };
   const saveW = wf.handleSubmit((data) => editing ? updateW.mutate({ id: editing.id, data: data as WarehouseUpdate }, { onSuccess: done, onError: () => setMessage('Não foi possível salvar o depósito.') }) : createW.mutate({ data }, { onSuccess: done, onError: () => setMessage('Não foi possível criar o depósito.') }));
   const saveL = lf.handleSubmit((data) => editing ? updateL.mutate({ id: editing.id, data: data as StorageLocationUpdate }, { onSuccess: done, onError: () => setMessage('Não foi possível salvar a localização.') }) : createL.mutate({ data }, { onSuccess: done, onError: () => setMessage('Não foi possível criar a localização.') }));
+  const submitAdjustment = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const [productId, locationId] = adjustmentTarget.split(':').map(Number);
+    const delta = Number(adjustmentDelta);
+    const target = balances.find((row) => row.productId === productId && row.locationId === locationId);
+    if (!target || !Number.isInteger(delta) || delta === 0) {
+      setMessage('Selecione um saldo e informe um ajuste inteiro diferente de zero.');
+      return;
+    }
+    createMovement.mutate({
+      id: productId,
+      data: { type: 'adjustment', quantity: delta, locationId, note: 'Ajuste de inventário' },
+    }, {
+      onSuccess: () => {
+        setAdjustmentDelta('');
+        setMessage('Ajuste de estoque registrado.');
+        refresh(getListInventoryQueryKey(), getListProductsQueryKey(), getListActivityQueryKey(), getGetDashboardSummaryQueryKey(), getGetStockReportQueryKey());
+      },
+      onError: () => setMessage('Não foi possível ajustar. Confira o saldo e tente novamente.'),
+    });
+  };
   const failed = warehousesQ.isError || locationsQ.isError || inventoryQ.isError; const loading = warehousesQ.isLoading || locationsQ.isLoading || inventoryQ.isLoading;
   return <Frame><PageIntro eyebrow="organização física" title="Estoques" description="Depósitos, localizações e saldos por prateleira. O inventário certo começa no endereço certo." action={canManage ? <div className="flex flex-wrap gap-2"><button type="button" onClick={() => showForm('location')} data-testid="button-new-location" className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold">Nova localização</button><button type="button" onClick={() => showForm('warehouse')} data-testid="button-new-warehouse" className={buttonPrimary}><Plus size={15} /> Novo depósito</button></div> : undefined} />
     {message && <p role="status" data-testid="status-warehouse-feedback" className="mb-4 text-xs font-bold text-primary">{message}</p>}
@@ -115,7 +140,8 @@ export function WarehousesPage({ canManage = false }: { canManage?: boolean }) {
     {loading && <div className="space-y-3">{[0,1,2].map((x)=><div key={x} className="skeleton h-16 rounded-xl bg-muted" />)}</div>}
     {failed && <LoadState loading={false} error retry={() => { void warehousesQ.refetch(); void locationsQ.refetch(); void inventoryQ.refetch(); }} />}
     {!loading && !failed && <div className="space-y-6">{warehouses.length === 0 ? <Empty text="Crie um depósito para começar a organizar suas localizações." /> : warehouses.map((w) => <section key={w.id} className={`${panel} overflow-hidden`} data-testid={`warehouse-card-${w.id}`}><header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-muted/30 p-5"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fbe8ef] text-primary"><Building2 size={18} /></span><div><h2 className="font-extrabold">{w.name}</h2><p className="font-mono text-[10px] text-muted-foreground">{w.code} · {w.address || 'Endereço não informado'}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${w.active?'bg-emerald-50 text-emerald-700':'bg-muted text-muted-foreground'}`}>{w.active?'Ativo':'Inativo'}</span></div>{canManage&&<div className="flex gap-2"><button type="button" onClick={() => showForm('warehouse',w.id)} data-testid={`button-edit-warehouse-${w.id}`} className="text-xs font-bold">Editar depósito</button><ActionButton label={`excluir-deposito-${w.id}`} onClick={() => { if(window.confirm(`Excluir ${w.name}?`)) deleteW.mutate({id:w.id},{onSuccess:done,onError:()=>setMessage('Não foi possível excluir o depósito.')}); }} /></div>}</header><div className="divide-y divide-border/60">{locations.filter((l)=>l.warehouseId===w.id).map((loc)=><div key={loc.id} data-testid={`location-row-${loc.id}`} className="grid gap-3 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-center"><div className="flex items-center gap-3"><WarehouseIcon size={16} className="text-muted-foreground" /><div><p className="text-sm font-bold">{loc.name} <span className="ml-1 font-mono text-[10px] text-muted-foreground">{loc.code}</span></p><p className="text-[11px] text-muted-foreground">{loc.description || 'Sem descrição'}</p></div></div><p className="text-xs text-muted-foreground">{balances.filter((b)=>b.locationId===loc.id).length} produtos · {count.format(balances.filter((b)=>b.locationId===loc.id).reduce((s,b)=>s+b.quantity,0))} unidades</p>{canManage&&<div className="flex gap-2"><button type="button" onClick={() => showForm('location',loc.id)} data-testid={`button-edit-location-${loc.id}`} className="text-xs font-bold">Editar</button><ActionButton label={`excluir-localizacao-${loc.id}`} onClick={() => { if(window.confirm(`Excluir ${loc.name}?`)) deleteL.mutate({id:loc.id},{onSuccess:done,onError:()=>setMessage('Não foi possível excluir a localização.')}); }} /></div>}</div>)}</div>{locations.filter((l)=>l.warehouseId===w.id).length===0&&<p className="p-5 text-xs text-muted-foreground">Nenhuma localização cadastrada neste depósito.</p>}</section>)}</div>}
-    {!loading && !failed && balances.length > 0 && <section className={`${panel} mt-6 overflow-hidden`}><div className="border-b border-border/70 p-5"><h2 className="font-extrabold">Saldo por localização</h2><p className="mt-1 text-xs text-muted-foreground">Posição atual do inventário físico.</p></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground"><tr><th className="p-4">Produto</th><th className="p-4">Depósito / localização</th><th className="p-4">Saldo</th><th className="p-4">Mín. / máx.</th><th className="p-4">Valor</th></tr></thead><tbody className="divide-y divide-border/60">{balances.map((b)=><tr key={b.id} data-testid={`inventory-row-${b.id}`}><td className="p-4 font-bold">{b.productName}<span className="block font-mono text-[10px] text-muted-foreground">{b.sku}</span></td><td className="p-4">{b.warehouseName} / {b.locationName}</td><td className="p-4 font-mono font-bold">{count.format(b.quantity)}</td><td className="p-4 font-mono">{b.minStock} / {b.maxStock}</td><td className="p-4 font-mono">{money.format(b.inventoryValue)}</td></tr>)}</tbody></table></div></section>}
+     {canManage && !loading && !failed && balances.length > 0 && <section className={`${panel} mt-6 p-5`} data-testid="stock-adjustment-panel"><div className="mb-4"><h2 className="font-extrabold">Ajustar saldo</h2><p className="mt-1 text-xs text-muted-foreground">Use um valor positivo para acrescentar unidades ou negativo para reduzir o saldo físico.</p></div><form onSubmit={submitAdjustment} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px_auto]"><label className="text-xs font-bold">Produto e localização<select required value={adjustmentTarget} onChange={(event) => setAdjustmentTarget(event.target.value)} data-testid="select-adjustment-target" className={`${input} mt-1 font-normal`}><option value="">Selecione um saldo</option>{balances.map((b) => <option key={b.id} value={`${b.productId}:${b.locationId}`}>{b.productName} · {b.locationName} · atual {b.quantity}</option>)}</select></label><label className="text-xs font-bold">Variação de unidades<input required type="number" step="1" value={adjustmentDelta} onChange={(event) => setAdjustmentDelta(event.target.value)} data-testid="input-adjustment-delta" className={`${input} mt-1 font-normal`} placeholder="Ex.: -2 ou 5" /></label><button type="submit" disabled={createMovement.isPending} data-testid="button-submit-adjustment" className={`${buttonPrimary} self-end`}>{createMovement.isPending && <Loader2 size={14} className="animate-spin" />} Registrar ajuste</button></form></section>}
+     {!loading && !failed && balances.length > 0 && <section className={`${panel} mt-6 overflow-hidden`}><div className="border-b border-border/70 p-5"><h2 className="font-extrabold">Saldo por localização</h2><p className="mt-1 text-xs text-muted-foreground">Posição atual do inventário físico.</p></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground"><tr><th className="p-4">Produto</th><th className="p-4">Depósito / localização</th><th className="p-4">Saldo</th><th className="p-4">Mín. / máx.</th><th className="p-4">Valor</th></tr></thead><tbody className="divide-y divide-border/60">{balances.map((b)=><tr key={b.id} data-testid={`inventory-row-${b.id}`}><td className="p-4 font-bold">{b.productName}<span className="block font-mono text-[10px] text-muted-foreground">{b.sku}</span></td><td className="p-4">{b.warehouseName} / {b.locationName}</td><td className="p-4 font-mono font-bold">{count.format(b.quantity)}</td><td className="p-4 font-mono">{b.minStock} / {b.maxStock}</td><td className="p-4 font-mono">{money.format(b.inventoryValue)}</td></tr>)}</tbody></table></div></section>}
   </Frame>;
 }
 

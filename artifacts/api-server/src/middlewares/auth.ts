@@ -24,7 +24,25 @@ class AccessDeniedError extends Error {}
 async function resolveAppUser(clerkUserId: string): Promise<AppUser> {
   const [existing] = await db.select().from(appUsersTable)
     .where(eq(appUsersTable.clerkUserId, clerkUserId)).limit(1);
-  if (existing) return existing;
+  if (existing) {
+    if (existing.name !== existing.email) return existing;
+    try {
+      const identity = await clerkClient.users.getUser(clerkUserId);
+      const registrationName = identity.unsafeMetadata?.appFullName;
+      const identityName = [identity.firstName, identity.lastName].filter(Boolean).join(" ").trim();
+      const name = typeof registrationName === "string" && registrationName.trim()
+        ? registrationName.trim()
+        : identity.fullName?.trim() || identityName;
+      if (!name) return existing;
+      const [updated] = await db.update(appUsersTable)
+        .set({ name })
+        .where(eq(appUsersTable.id, existing.id))
+        .returning();
+      return updated ?? existing;
+    } catch {
+      return existing;
+    }
+  }
 
   const identity = await clerkClient.users.getUser(clerkUserId);
   const emailRecord = identity.emailAddresses.find(
@@ -34,7 +52,11 @@ async function resolveAppUser(clerkUserId: string): Promise<AppUser> {
     throw new AccessDeniedError("A verified primary email is required");
   }
   const email = emailRecord.emailAddress.trim().toLowerCase();
-  const name = [identity.firstName, identity.lastName].filter(Boolean).join(" ").trim() || email;
+  const registrationName = identity.unsafeMetadata?.appFullName;
+  const identityName = [identity.firstName, identity.lastName].filter(Boolean).join(" ").trim();
+  const name = typeof registrationName === "string" && registrationName.trim()
+    ? registrationName.trim()
+    : identity.fullName?.trim() || identityName;
 
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(815432)`);
@@ -52,9 +74,13 @@ async function resolveAppUser(clerkUserId: string): Promise<AppUser> {
       if (count.count !== 0) throw new AccessDeniedError("This account has not been invited");
       role = "administrator";
     }
+    const storedName = invitation?.name?.trim() || name;
+    if (!storedName) {
+      throw new AccessDeniedError("Informe seu nome completo no cadastro para acessar o sistema");
+    }
 
     const [created] = await tx.insert(appUsersTable)
-      .values({ clerkUserId, email, name: invitation?.name ?? name, role })
+      .values({ clerkUserId, email, name: storedName, role })
       .returning();
     if (invitation) {
       await tx.delete(userInvitationsTable).where(eq(userInvitationsTable.id, invitation.id));
