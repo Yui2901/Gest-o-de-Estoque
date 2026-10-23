@@ -1,45 +1,55 @@
-# [Gestor de estoque]
+## Gestor de Estoque
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+O Sistema Gestão de Estoque é uma aplicação voltada a pessoas que estão começando no mundo das vendas, oferecendo uma maneira simples de organizar produtos, controlar quantidades e facilitar a administração das mercadorias. O projeto também busca ampliar o controle das operações comerciais por meio da organização de pedidos.
 
-## Run & Operate
+## Executar e Operar
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm install` — instalar as dependências.
+- `pnpm run typecheck` — verificar os tipos do projeto.
+- `pnpm run build` — verificar e compilar os módulos configurados.
+- Os comandos para iniciar a aplicação devem ser confirmados nos scripts da branch utilizada.
 
-## Stack
+## Tecnologias Utilizadas
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- **Linguagem:** TypeScript.
+- **Ambiente de execução:** Node.js.
+- **Gerenciador de pacotes:** pnpm.
+- **Outras tecnologias:** confirmar nos arquivos de configuração da branch.
 
-## Where things live
+## Estrutura do Projeto
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/` — diretório de artefatos do projeto.
+- `lib/` — diretório de bibliotecas e código compartilhado.
+- `scripts/` — scripts auxiliares.
+- `package.json` — dependências e comandos do projeto.
 
-## Architecture decisions
+A organização interna deve ser confirmada na branch `att-sistemas-de-pedisdos`.
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+## Decisões de Arquitetura
 
-## Product
+- Priorizar a simplicidade para usuários iniciantes.
+- Organizar as informações de produtos e pedidos.
+- Facilitar futuras melhorias e a manutenção do código.
+- Buscar consistência entre as informações de estoque e as operações comerciais.
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+## Funcionalidades do Sistema
 
-## User preferences
+O projeto tem como objetivo facilitar a gestão de produtos e o acompanhamento de pedidos, ajudando pequenos comerciantes e vendedores iniciantes a manter suas informações organizadas e administrar melhor suas atividades.
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+## Preferências do Projeto
 
-## Gotchas
+- Foco em iniciantes no mundo das vendas.
+- Interface e funcionalidades simples e fáceis de compreender.
+- Prioridade para a organização de produtos, estoque e pedidos.
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+## Cuidados Importantes
 
-## Pointers
+- Verificar se os comandos de execução existem na branch selecionada.
+- Confirmar as variáveis de ambiente e os serviços necessários antes de iniciar a aplicação.
+- Não presumir que funcionalidades planejadas já estejam implementadas.
+- Validar as alterações no estoque de acordo com as regras de negócio do sistema.
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+## Links e Referências
+
+- Repositório: https://github.com/Yui2901/Gest-o-de-Estoque
+- Branch de pedidos: https://github.com/Yui2901/Gest-o-de-Estoque/tree/att-sistemas-de-pedisdos
